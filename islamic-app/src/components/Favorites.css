@@ -1,0 +1,247 @@
+.favorites-container {
+  width: 100%;
+}
+
+.favorites-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.favorites-header h1 {
+  font-size: 2.5rem;
+  color: var(--primary-color);
+  margin-bottom: 0.5rem;
+}
+
+.subtitle {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+}
+
+.favorites-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.tab-buttons {
+  display: flex;
+  gap: 1rem;
+}
+
+.tab-button {
+  padding: 0.75rem 1.5rem;
+  border: 2px solid var(--border-color);
+  background: var(--card-bg);
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: var(--text-primary);
+}
+
+.tab-button:hover {
+  border-color: var(--primary-color);
+  transform: translateY(-2px);
+}
+
+.tab-button.active {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+.export-import-buttons {
+  display: flex;
+  gap: 1rem;
+}
+
+.export-button,
+.import-button {
+  padding: 0.75rem 1.5rem;
+  background: var(--secondary-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-block;
+}
+
+.export-button:hover,
+.import-button:hover {
+  background: #c99f1f;
+  transform: translateY(-2px);
+}
+
+.favorites-content {
+  width: 100%;
+}
+
+.empty-state {
+  background: var(--card-bg);
+  padding: 4rem 2rem;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+
+.empty-state p {
+  font-size: 1.5rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.empty-subtitle {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+.verses-list,
+.duas-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.favorite-card {
+  background: var(--card-bg);
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.favorite-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--primary-color);
+}
+
+.favorite-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.favorite-meta {
+  flex: 1;
+}
+
+.favorite-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  margin-bottom: 0.5rem;
+}
+
+.favorite-subtitle {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.remove-button {
+  background: #dc2626;
+  color: white;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.remove-button:hover {
+  background: #b91c1c;
+  transform: scale(1.1);
+}
+
+.favorite-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.verse-arabic,
+.dua-arabic {
+  font-size: 1.8rem;
+  line-height: 2.5;
+  color: var(--text-primary);
+  text-align: right;
+  padding: 1.5rem;
+  background: rgba(26, 71, 42, 0.05);
+  border-radius: 8px;
+  border-right: 3px solid var(--primary-color);
+}
+
+.verse-translation,
+.dua-translation {
+  font-size: 1.1rem;
+  line-height: 1.8;
+  color: var(--text-secondary);
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+}
+
+.dua-transliteration {
+  font-size: 1.1rem;
+  line-height: 1.8;
+  color: var(--text-secondary);
+  font-style: italic;
+  padding: 1rem;
+  background: rgba(212, 175, 55, 0.05);
+  border-radius: 8px;
+}
+
+@media (max-width: 768px) {
+  .favorites-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tab-buttons {
+    width: 100%;
+  }
+
+  .tab-button {
+    flex: 1;
+  }
+
+  .export-import-buttons {
+    width: 100%;
+  }
+
+  .export-button,
+  .import-button {
+    flex: 1;
+    text-align: center;
+  }
+
+  .favorite-card {
+    padding: 1.5rem;
+  }
+
+  .verse-arabic,
+  .dua-arabic {
+    font-size: 1.5rem;
+    padding: 1rem;
+  }
+}
+

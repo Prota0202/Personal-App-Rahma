@@ -1,0 +1,214 @@
+.dashboard-container {
+  width: 100%;
+}
+
+.dashboard-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.dashboard-header h1 {
+  font-size: 2.5rem;
+  color: var(--primary-color);
+  margin-bottom: 0.5rem;
+}
+
+.dashboard-date {
+  font-size: 1.2rem;
+  color: var(--text-secondary);
+}
+
+.hijri-date {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.dashboard-card {
+  background: var(--card-bg);
+  padding: 2rem;
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: inherit;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--primary-color);
+}
+
+.next-prayer-card {
+  grid-column: span 2;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+  color: white;
+  border: none;
+}
+
+.next-prayer-card:hover {
+  border-color: transparent;
+}
+
+.quick-link-card {
+  min-height: 150px;
+}
+
+.favorites-card {
+  background: linear-gradient(135deg, var(--secondary-color) 0%, #f5d03d 100%);
+  color: white;
+  border: none;
+}
+
+.favorites-card:hover {
+  border-color: transparent;
+}
+
+.card-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.card-content {
+  flex: 1;
+}
+
+.card-content h3 {
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.5rem;
+  opacity: 0.8;
+  font-weight: 600;
+}
+
+.next-prayer-card .card-content h3,
+.favorites-card .card-content h3 {
+  opacity: 0.9;
+}
+
+.card-content h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: inherit;
+}
+
+.next-prayer-card .arabic-text {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  opacity: 0.9;
+}
+
+.countdown {
+  font-size: 3rem;
+  font-weight: 700;
+  margin: 1rem 0;
+  line-height: 1;
+}
+
+.prayer-time {
+  font-size: 1.1rem;
+  opacity: 0.9;
+}
+
+.card-link {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  font-weight: 600;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.3s ease;
+}
+
+.card-link:hover {
+  opacity: 0.8;
+  transform: translateX(5px);
+}
+
+.prayer-times-summary {
+  grid-column: span 2;
+}
+
+.prayer-times-summary h3 {
+  font-size: 1.5rem;
+  color: var(--primary-color);
+  margin-bottom: 1.5rem;
+}
+
+.prayer-times-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.prayer-time-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background: rgba(26, 71, 42, 0.05);
+  border-radius: 8px;
+}
+
+.prayer-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.prayer-time-text {
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+.daily-reminder {
+  grid-column: span 2;
+  background: linear-gradient(135deg, rgba(26, 71, 42, 0.1) 0%, rgba(45, 90, 61, 0.1) 100%);
+  border: 2px solid var(--primary-color);
+}
+
+.reminder-arabic {
+  font-size: 1.8rem;
+  margin: 1rem 0;
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.reminder-translation {
+  font-style: italic;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
+@media (max-width: 768px) {
+  .next-prayer-card,
+  .prayer-times-summary,
+  .daily-reminder {
+    grid-column: span 1;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .countdown {
+    font-size: 2rem;
+  }
+
+  .prayer-times-list {
+    grid-template-columns: 1fr;
+  }
+}
+

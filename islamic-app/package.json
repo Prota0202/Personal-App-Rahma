@@ -1,0 +1,23 @@
+{
+  "name": "rahma",
+  "version": "1.0.0",
+  "description": "Rahma - Your complete Islamic companion app with prayer times, Quran reading, Hadiths, Duaas and more",
+  "private": true,
+  "dependencies": {
+    "adhan": "^4.0.0",
+    "date-fns": "^2.30.0",
+    "hijri-date": "^0.2.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.0",
+    "vite": "^5.0.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  }
+}
