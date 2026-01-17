@@ -1,3 +1,6 @@
+import DateTimePicker from '@react-native-community/datetimepicker'
+import { Audio } from 'expo-av'
+import * as Notifications from 'expo-notifications'
 import { StatusBar } from 'expo-status-bar'
 import { format } from 'date-fns'
 import HijriDate from 'hijri-date'
@@ -6,6 +9,7 @@ import {
   NativeModules,
   SafeAreaView,
   ScrollView,
+  Switch,
   StyleSheet,
   Text,
   TextInput,
@@ -13,6 +17,7 @@ import {
   View,
 } from 'react-native'
 import * as Location from 'expo-location'
+import dailyReminders from './src/data/dailyReminders'
 import { azkarCategories } from './src/data/azkar'
 import { duaaCategories } from './src/data/duaas'
 import { hadiths } from './src/data/hadiths'
@@ -80,6 +85,12 @@ type FavoritesState = {
   hadiths: FavoriteHadith[]
 }
 
+type LastReads = {
+  quran?: { surahNumber: number; surahName: string; ayahNumber?: number }
+  duaa?: { id: number; title: string }
+  hadith?: { id: number; title: string }
+}
+
 type Surah = {
   number: number
   name: string
@@ -98,6 +109,30 @@ type Ayah = {
 const FAVORITES_KEY = 'rahma.favorites'
 const STATS_KEY = 'rahma.stats'
 const TASBIH_KEY = 'rahma.tasbih.session'
+const DAILY_REMINDER_KEY = 'rahma.dailyReminder'
+const DAILY_REMINDER_TIME_KEY = 'rahma.dailyReminder.time'
+const DAILY_REMINDER_NOTIFICATION_ID_KEY = 'rahma.dailyReminder.notificationId'
+const PRAYER_ALERTS_KEY = 'rahma.prayerAlerts'
+const PRAYER_REMINDERS_KEY = 'rahma.prayerReminders'
+const PRAYER_NOTIFICATION_IDS_KEY = 'rahma.prayerNotifications'
+const LAST_READS_KEY = 'rahma.lastReads'
+
+const ADHAN_SOUNDS = [
+  {
+    id: 'mishary',
+    label: 'Mishary Alafasy',
+    file: require('./assets/adhan-mishary-alafasy.mp3'),
+    soundName: 'adhan-mishary-alafasy.mp3',
+  },
+]
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+})
 
 export default function App() {
   const [status, setStatus] = useState('Requesting location...')
@@ -113,6 +148,7 @@ export default function App() {
     duaas: [],
     hadiths: [],
   })
+  const [lastReads, setLastReads] = useState<LastReads>({})
   const [stats, setStats] = useState<Record<string, number>>({})
   const [selectedSurah, setSelectedSurah] = useState<Surah | null>(null)
   const [surahs, setSurahs] = useState<Surah[]>([])
@@ -132,6 +168,28 @@ export default function App() {
   )
   const [selectedHadithId, setSelectedHadithId] = useState<number | null>(null)
   const [hadithSearch, setHadithSearch] = useState('')
+  const [dailyReminderEnabled, setDailyReminderEnabled] = useState(false)
+  const [dailyReminderTime, setDailyReminderTime] = useState(() => {
+    const base = new Date()
+    base.setHours(9, 0, 0, 0)
+    return base
+  })
+  const [showDailyPicker, setShowDailyPicker] = useState(false)
+  const [notificationPermission, setNotificationPermission] = useState<'granted' | 'denied' | 'undetermined'>(
+    'undetermined'
+  )
+  const [prayerAlertsEnabled, setPrayerAlertsEnabled] = useState(false)
+  const [prayerReminderEnabled, setPrayerReminderEnabled] = useState(false)
+  const [prayerReminderMinutes, setPrayerReminderMinutes] = useState(5)
+  const [adhanSoundPreference, setAdhanSoundPreference] = useState<'system' | 'adhan'>('system')
+  const [adhanSoundId, setAdhanSoundId] = useState(ADHAN_SOUNDS[0]?.id ?? 'mishary')
+  const [prayerSwitches, setPrayerSwitches] = useState({
+    fajr: true,
+    dhuhr: true,
+    asr: true,
+    maghrib: true,
+    isha: true,
+  })
 
   useEffect(() => {
     const init = async () => {
@@ -175,6 +233,41 @@ export default function App() {
     )
     readJson<Record<string, number>>(STATS_KEY, {}).then(setStats)
     readJson<number>(TASBIH_KEY, 0).then(setTasbihSessionTotal)
+    readJson<LastReads>(LAST_READS_KEY, {}).then(setLastReads)
+  }, [])
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      const permission = await Notifications.getPermissionsAsync()
+      setNotificationPermission(permission.status)
+      const savedDailyEnabled = await readJson<boolean>(DAILY_REMINDER_KEY, false)
+      const savedDailyTime = await readJson<string | null>(DAILY_REMINDER_TIME_KEY, null)
+      if (savedDailyTime) {
+        const parsed = new Date(savedDailyTime)
+        if (!Number.isNaN(parsed.getTime())) {
+          setDailyReminderTime(parsed)
+        }
+      }
+      setDailyReminderEnabled(savedDailyEnabled)
+      const savedPrayerSettings = await readJson(PRAYER_ALERTS_KEY, {
+        alertsEnabled: false,
+        reminderEnabled: false,
+        reminderMinutes: 5,
+        soundPreference: 'system',
+        soundId: ADHAN_SOUNDS[0]?.id ?? 'mishary',
+        switches: { fajr: true, dhuhr: true, asr: true, maghrib: true, isha: true },
+      })
+      setPrayerAlertsEnabled(savedPrayerSettings.alertsEnabled)
+      setPrayerReminderEnabled(savedPrayerSettings.reminderEnabled)
+      setPrayerReminderMinutes(savedPrayerSettings.reminderMinutes)
+      setAdhanSoundPreference(
+        savedPrayerSettings.soundPreference === 'adhan' ? 'adhan' : 'system'
+      )
+      setAdhanSoundId(savedPrayerSettings.soundId ?? ADHAN_SOUNDS[0]?.id ?? 'mishary')
+      setPrayerSwitches(savedPrayerSettings.switches)
+    }
+
+    loadSettings()
   }, [])
 
   useEffect(() => {
@@ -241,6 +334,108 @@ export default function App() {
     fetchAyahs()
   }, [selectedSurah])
 
+  const getDayOfYear = (date: Date) => {
+    const start = new Date(date.getFullYear(), 0, 0)
+    const diff = date.getTime() - start.getTime()
+    return Math.floor(diff / (1000 * 60 * 60 * 24))
+  }
+
+  const getDailyReminderMessage = (date = new Date()) => {
+    if (!dailyReminders?.length) return ''
+    const dayOfYear = getDayOfYear(date)
+    return dailyReminders[(dayOfYear - 1) % dailyReminders.length]
+  }
+
+  const requestNotificationPermission = async () => {
+    const current = await Notifications.getPermissionsAsync()
+    if (current.status === 'granted') {
+      setNotificationPermission('granted')
+      return true
+    }
+    const result = await Notifications.requestPermissionsAsync()
+    setNotificationPermission(result.status)
+    return result.status === 'granted'
+  }
+
+  const cancelScheduledNotifications = async (ids: string[]) => {
+    await Promise.all(ids.map((id) => Notifications.cancelScheduledNotificationAsync(id)))
+  }
+
+  const scheduleDailyReminder = async (time: Date) => {
+    const previousId = await readJson<string | null>(DAILY_REMINDER_NOTIFICATION_ID_KEY, null)
+    if (previousId) {
+      await Notifications.cancelScheduledNotificationAsync(previousId)
+    }
+    const message = getDailyReminderMessage(time)
+    const id = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Rappel du jour',
+        body: message,
+        sound: 'default',
+      },
+      trigger: {
+        hour: time.getHours(),
+        minute: time.getMinutes(),
+        repeats: true,
+      },
+    })
+    await writeJson(DAILY_REMINDER_NOTIFICATION_ID_KEY, id)
+  }
+
+  const schedulePrayerNotifications = async () => {
+    if (!prayerTimes) return
+    const ids = await readJson<string[]>(PRAYER_NOTIFICATION_IDS_KEY, [])
+    if (ids.length > 0) {
+      await cancelScheduledNotifications(ids)
+    }
+    const now = new Date()
+    const notificationIds: string[] = []
+    const prayers = [
+      { key: 'fajr', label: 'Fajr' },
+      { key: 'dhuhr', label: 'Dhuhr' },
+      { key: 'asr', label: 'Asr' },
+      { key: 'maghrib', label: 'Maghrib' },
+      { key: 'isha', label: 'Isha' },
+    ] as const
+
+    for (const prayer of prayers) {
+      if (!prayerSwitches[prayer.key]) continue
+      const time = prayerTimes[prayer.key]
+      if (time <= now) continue
+      if (prayerReminderEnabled) {
+        const reminderTime = new Date(time.getTime() - prayerReminderMinutes * 60 * 1000)
+        if (reminderTime > now) {
+          const reminderId = await Notifications.scheduleNotificationAsync({
+            content: {
+              title: `Rappel ${prayer.label}`,
+              body: `${prayer.label} dans ${prayerReminderMinutes} minutes.`,
+              sound: 'default',
+            },
+            trigger: reminderTime,
+          })
+          notificationIds.push(reminderId)
+        }
+      }
+      if (prayerAlertsEnabled) {
+        const sound =
+          adhanSoundPreference === 'adhan'
+            ? ADHAN_SOUNDS.find((item) => item.id === adhanSoundId)?.soundName || 'default'
+            : 'default'
+        const prayerId = await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `${prayer.label} (${prayer.key.toUpperCase()})`,
+            body: `L'heure de ${prayer.label} est arrivée.`,
+            sound,
+          },
+          trigger: time,
+        })
+        notificationIds.push(prayerId)
+      }
+    }
+
+    await writeJson(PRAYER_NOTIFICATION_IDS_KEY, notificationIds)
+  }
+
   const quickActions = useMemo(
     () => [
       { key: 'prayer' as TabKey, label: 'Horaires', icon: '🕌' },
@@ -255,6 +450,39 @@ export default function App() {
     const next = await updateCounter(STATS_KEY, field, 1)
     setStats(next)
   }, [])
+
+  useEffect(() => {
+    writeJson(DAILY_REMINDER_KEY, dailyReminderEnabled)
+    writeJson(DAILY_REMINDER_TIME_KEY, dailyReminderTime.toISOString())
+    if (!dailyReminderEnabled) {
+      writeJson(DAILY_REMINDER_NOTIFICATION_ID_KEY, null)
+      return
+    }
+    if (notificationPermission !== 'granted') return
+    scheduleDailyReminder(dailyReminderTime)
+  }, [dailyReminderEnabled, dailyReminderTime, notificationPermission])
+
+  useEffect(() => {
+    writeJson(PRAYER_ALERTS_KEY, {
+      alertsEnabled: prayerAlertsEnabled,
+      reminderEnabled: prayerReminderEnabled,
+      reminderMinutes: prayerReminderMinutes,
+      soundPreference: adhanSoundPreference,
+      soundId: adhanSoundId,
+      switches: prayerSwitches,
+    })
+    if (notificationPermission !== 'granted') return
+    schedulePrayerNotifications()
+  }, [
+    prayerAlertsEnabled,
+    prayerReminderEnabled,
+    prayerReminderMinutes,
+    adhanSoundPreference,
+    adhanSoundId,
+    prayerSwitches,
+    prayerTimes,
+    notificationPermission,
+  ])
 
   const toggleFavoriteVerse = async (verse: FavoriteVerse) => {
     const exists = favorites.verses.some((item) => item.id === verse.id)
@@ -290,6 +518,21 @@ export default function App() {
     }
     setFavorites(next)
     await writeJson(FAVORITES_KEY, next)
+  }
+
+  const playAdhanSample = async () => {
+    try {
+      const selected = ADHAN_SOUNDS.find((item) => item.id === adhanSoundId) ?? ADHAN_SOUNDS[0]
+      const { sound } = await Audio.Sound.createAsync(selected.file)
+      await sound.playAsync()
+      sound.setOnPlaybackStatusUpdate((status: Audio.AVPlaybackStatus) => {
+        if ('didJustFinish' in status && status.didJustFinish) {
+          sound.unloadAsync()
+        }
+      })
+    } catch {
+      // Ignore playback errors silently
+    }
   }
 
   const selectedDuaaCategoryData =
@@ -333,6 +576,122 @@ export default function App() {
               <Text style={styles.rowValue}>{formatTime(prayerTimes[row.key])}</Text>
             </View>
           ))}
+        </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Notifications</Text>
+          <View style={styles.card}>
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>Rappels avant prière</Text>
+              <Switch
+                value={prayerReminderEnabled}
+                onValueChange={async (value) => {
+                  if (value) {
+                    const allowed = await requestNotificationPermission()
+                    if (!allowed) return
+                  }
+                  setPrayerReminderEnabled(value)
+                }}
+              />
+            </View>
+            {prayerReminderEnabled && (
+              <View style={styles.row}>
+                <Text style={styles.rowLabel}>Minutes avant</Text>
+                <TextInput
+                  value={String(prayerReminderMinutes)}
+                  onChangeText={(value) => {
+                    const minutes = Number.parseInt(value, 10)
+                    if (!Number.isNaN(minutes)) setPrayerReminderMinutes(minutes)
+                  }}
+                  keyboardType="number-pad"
+                  style={styles.inlineInput}
+                />
+              </View>
+            )}
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>Alertes Athan</Text>
+              <Switch
+                value={prayerAlertsEnabled}
+                onValueChange={async (value) => {
+                  if (value) {
+                    const allowed = await requestNotificationPermission()
+                    if (!allowed) return
+                  }
+                  setPrayerAlertsEnabled(value)
+                }}
+              />
+            </View>
+            {prayerAlertsEnabled && (
+              <>
+                <Text style={styles.sectionSubtitle}>Son de notification</Text>
+                <View style={styles.chipRow}>
+                  {(['system', 'adhan'] as const).map((value) => (
+                    <TouchableOpacity
+                      key={value}
+                      style={[
+                        styles.chip,
+                        adhanSoundPreference === value && styles.chipActive,
+                      ]}
+                      onPress={() => setAdhanSoundPreference(value)}
+                    >
+                      <Text
+                        style={[
+                          styles.chipText,
+                          adhanSoundPreference === value && styles.chipTextActive,
+                        ]}
+                      >
+                        {value === 'system' ? 'Son système' : 'Adhan'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {adhanSoundPreference === 'adhan' && (
+                  <>
+                    <Text style={styles.sectionSubtitle}>Voix</Text>
+                    <View style={styles.chipRow}>
+                      {ADHAN_SOUNDS.map((sound) => (
+                        <TouchableOpacity
+                          key={sound.id}
+                          style={[
+                            styles.chip,
+                            adhanSoundId === sound.id && styles.chipActive,
+                          ]}
+                          onPress={() => setAdhanSoundId(sound.id)}
+                        >
+                          <Text
+                            style={[
+                              styles.chipText,
+                              adhanSoundId === sound.id && styles.chipTextActive,
+                            ]}
+                          >
+                            {sound.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <TouchableOpacity style={styles.secondaryButton} onPress={playAdhanSample}>
+                      <Text style={styles.secondaryButtonText}>Tester l’adhan</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+            </>
+            )}
+          </View>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Prières activées</Text>
+            <View style={styles.card}>
+              {rows.map((row) => (
+                <View key={row.key} style={styles.row}>
+                  <Text style={styles.rowLabel}>{row.label}</Text>
+                  <Switch
+                    value={prayerSwitches[row.key as keyof typeof prayerSwitches]}
+                    onValueChange={(value) =>
+                      setPrayerSwitches((prev) => ({ ...prev, [row.key]: value }))
+                    }
+                  />
+                </View>
+              ))}
+            </View>
+          </View>
         </View>
       </View>
     )
@@ -432,6 +791,12 @@ export default function App() {
               onPress={() => {
                 setSelectedSurah(surah)
                 bumpStat('quranReads')
+                const nextReads = {
+                  ...lastReads,
+                  quran: { surahNumber: surah.number, surahName: surah.name },
+                }
+                setLastReads(nextReads)
+                writeJson(LAST_READS_KEY, nextReads)
               }}
             >
               <Text style={styles.listTitle}>
@@ -505,6 +870,9 @@ export default function App() {
               onPress={() => {
                 setSelectedDuaaId(duaa.id)
                 bumpStat('duaaReads')
+                const nextReads = { ...lastReads, duaa: { id: duaa.id, title: duaa.title } }
+                setLastReads(nextReads)
+                writeJson(LAST_READS_KEY, nextReads)
               }}
             >
               <Text style={styles.listTitle}>{duaa.title}</Text>
@@ -714,6 +1082,9 @@ export default function App() {
               onPress={() => {
                 setSelectedHadithId(hadith.id)
                 bumpStat('hadithReads')
+                const nextReads = { ...lastReads, hadith: { id: hadith.id, title: hadith.title } }
+                setLastReads(nextReads)
+                writeJson(LAST_READS_KEY, nextReads)
               }}
             >
               <Text style={styles.listTitle}>{hadith.title}</Text>
@@ -857,6 +1228,75 @@ export default function App() {
     )
   }
 
+  const renderDailyReminder = () => {
+    const reminder = getDailyReminderMessage(new Date())
+    return (
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Rappel du jour</Text>
+        <View style={styles.card}>
+          <Text style={styles.translationText}>{reminder}</Text>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Notifications</Text>
+            <Switch
+              value={dailyReminderEnabled}
+              onValueChange={async (value) => {
+                if (value) {
+                  const allowed = await requestNotificationPermission()
+                  if (!allowed) return
+                }
+                setDailyReminderEnabled(value)
+              }}
+            />
+          </View>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => setShowDailyPicker(true)}
+          >
+            <Text style={styles.secondaryButtonText}>
+              Heure: {format(dailyReminderTime, 'HH:mm')}
+            </Text>
+          </TouchableOpacity>
+          {showDailyPicker && (
+            <DateTimePicker
+              mode="time"
+              value={dailyReminderTime}
+              onChange={(_: unknown, date?: Date) => {
+                setShowDailyPicker(false)
+                if (date) setDailyReminderTime(date)
+              }}
+            />
+          )}
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={async () => {
+              const allowed = notificationPermission === 'granted' || (await requestNotificationPermission())
+              if (!allowed) return
+              await Notifications.presentNotificationAsync({
+                title: 'Rappel du jour',
+                body: reminder,
+              })
+            }}
+          >
+            <Text style={styles.primaryButtonText}>Tester la notification</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    )
+  }
+
+  const getDaysUntilRamadan = () => {
+    const today = new Date()
+    for (let offset = 0; offset < 370; offset += 1) {
+      const check = new Date(today)
+      check.setDate(today.getDate() + offset)
+      const hijri = new HijriDate(check)
+      if (hijri.getMonth() + 1 === 9 && hijri.getDate() === 1) {
+        return offset
+      }
+    }
+    return null
+  }
+
   const renderHome = () => (
     <View>
       <View style={styles.hero}>
@@ -868,6 +1308,73 @@ export default function App() {
         <Text style={styles.cardValue}>{nextPrayerLabel}</Text>
         <Text style={styles.cardTime}>{nextPrayerTime}</Text>
       </View>
+      {renderDailyReminder()}
+      {(lastReads.quran || lastReads.duaa || lastReads.hadith) && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Continuer la lecture</Text>
+          <View style={styles.list}>
+            {lastReads.quran && (
+              <TouchableOpacity
+                style={styles.listCard}
+                onPress={() => {
+                  const surah = surahs.find((item) => item.number === lastReads.quran?.surahNumber)
+                  if (surah) setSelectedSurah(surah)
+                  setActiveTab('quran')
+                }}
+              >
+                <Text style={styles.listTitle}>Coran · {lastReads.quran.surahName}</Text>
+                <Text style={styles.listSubtitle}>Reprendre la lecture</Text>
+              </TouchableOpacity>
+            )}
+            {lastReads.duaa && (
+              <TouchableOpacity
+                style={styles.listCard}
+                onPress={() => {
+                  setActiveTab('duaas')
+                  setSelectedDuaaId(lastReads.duaa?.id ?? null)
+                }}
+              >
+                <Text style={styles.listTitle}>Doua · {lastReads.duaa.title}</Text>
+                <Text style={styles.listSubtitle}>Reprendre</Text>
+              </TouchableOpacity>
+            )}
+            {lastReads.hadith && (
+              <TouchableOpacity
+                style={styles.listCard}
+                onPress={() => {
+                  setActiveTab('hadiths')
+                  setSelectedHadithId(lastReads.hadith?.id ?? null)
+                }}
+              >
+                <Text style={styles.listTitle}>Hadith · {lastReads.hadith.title}</Text>
+                <Text style={styles.listSubtitle}>Reprendre</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
+      {(() => {
+        const hijri = new HijriDate(new Date())
+        const isRamadan = hijri.getMonth() + 1 === 9
+        const daysUntilRamadan = isRamadan ? 0 : getDaysUntilRamadan()
+        return (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Ramadan</Text>
+            <View style={styles.card}>
+              {isRamadan ? (
+                <Text style={styles.listTitle}>Ramadan Kareem 🌙</Text>
+              ) : (
+                <Text style={styles.listTitle}>
+                  {daysUntilRamadan !== null
+                    ? `Ramadan dans ${daysUntilRamadan} jours`
+                    : 'Ramadan prochain'}
+                </Text>
+              )}
+              <Text style={styles.listSubtitle}>Prépare tes objectifs spirituels.</Text>
+            </View>
+          </View>
+        )
+      })()}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Raccourcis</Text>
         <View style={styles.actionGrid}>
@@ -917,10 +1424,6 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Rahma Mobile</Text>
-        <Text style={styles.headerStatus}>{status}</Text>
-      </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {renderContent()}
       </ScrollView>
@@ -948,24 +1451,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f1e8',
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 6,
-    paddingBottom: 12,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1a1714',
-  },
-  headerStatus: {
-    marginTop: 4,
-    fontSize: 12,
-    color: '#6b6257',
-  },
   content: {
     paddingHorizontal: 20,
-    paddingBottom: 120,
+    paddingBottom: 180,
   },
   hero: {
     paddingVertical: 12,
@@ -1104,6 +1592,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e5ded0',
     backgroundColor: '#fffdf8',
+    color: '#1a1714',
+  },
+  inlineInput: {
+    minWidth: 56,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e5ded0',
+    backgroundColor: '#fffdf8',
+    textAlign: 'center',
     color: '#1a1714',
   },
   backButton: {
