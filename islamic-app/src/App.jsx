@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom'
 import { useTheme } from './contexts/ThemeContext'
 import { useLanguage } from './contexts/LanguageContext'
@@ -19,6 +19,11 @@ function Navigation() {
   const location = useLocation()
   const { isDarkMode, toggleTheme } = useTheme()
   const { language, changeLanguage, t } = useLanguage()
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false)
+  }, [location.pathname])
   
   const navItems = [
     { path: '/', label: t('home'), icon: '🏠' },
@@ -41,12 +46,23 @@ function Navigation() {
           <span className="brand-icon">☪️</span>
           <span className="brand-text">Rahma</span>
         </div>
-        <div className="nav-links">
+        <button
+          type="button"
+          className="nav-toggle"
+          aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+          onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+          onTouchStart={() => setIsMobileMenuOpen((prev) => !prev)}
+        >
+          {isMobileMenuOpen ? '✕' : '☰'}
+        </button>
+        <div className={`nav-links ${isMobileMenuOpen ? 'open' : ''}`}>
           {navItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}
               className={`nav-link ${location.pathname === item.path ? 'active' : ''}`}
+              onClick={() => setIsMobileMenuOpen(false)}
+              onTouchStart={() => setIsMobileMenuOpen(false)}
             >
               <span className="nav-icon">{item.icon}</span>
               <span className="nav-label">{item.label}</span>
@@ -74,6 +90,14 @@ function Navigation() {
           </div>
         </div>
       </div>
+      <button
+        type="button"
+        className={`nav-overlay ${isMobileMenuOpen ? 'visible' : ''}`}
+        aria-hidden={!isMobileMenuOpen}
+        tabIndex={isMobileMenuOpen ? 0 : -1}
+        onClick={() => setIsMobileMenuOpen(false)}
+        onTouchStart={() => setIsMobileMenuOpen(false)}
+      />
     </nav>
   )
 }

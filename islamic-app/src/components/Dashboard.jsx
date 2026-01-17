@@ -241,12 +241,12 @@ const Dashboard = () => {
       <div className="dashboard-header">
         <h1>🌅 {getGreeting()}</h1>
         <div className="dashboard-meta">
-          <p className="dashboard-date">
+        <p className="dashboard-date">
             {format(today, 'EEEE, MMMM d, yyyy')}
-            {hijriDate && (
-              <span className="hijri-date"> • {hijriDate.day} {hijriDate.month} {hijriDate.year} AH</span>
-            )}
-          </p>
+          {hijriDate && (
+            <span className="hijri-date"> • {hijriDate.day} {hijriDate.month} {hijriDate.year} AH</span>
+          )}
+        </p>
           {hasLocation && (
             <div className="location-pill">
               <span className="location-label">📍 {t('location')}</span>

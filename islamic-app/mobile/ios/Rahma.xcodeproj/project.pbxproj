@@ -25,7 +25,7 @@
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Rahma/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
 		CD94586860BA4773A61CB340 /* Pods-Rahma.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Rahma.release.xcconfig"; path = "Target Support Files/Pods-Rahma/Pods-Rahma.release.xcconfig"; sourceTree = "<group>"; };
-		E383E6F7F1FA27BF1AEC2096 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Rahma/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		E383E6F7F1FA27BF1AEC2096 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = Rahma/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		E8D370F7A2AAA7B7B8454AE7 /* Pods-Rahma.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Rahma.debug.xcconfig"; path = "Target Support Files/Pods-Rahma/Pods-Rahma.debug.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Rahma/AppDelegate.swift; sourceTree = "<group>"; };
@@ -120,7 +120,6 @@
 				E8D370F7A2AAA7B7B8454AE7 /* Pods-Rahma.debug.xcconfig */,
 				CD94586860BA4773A61CB340 /* Pods-Rahma.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -339,6 +338,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Rahma/Rahma.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2L6NUM3YT2;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -357,7 +357,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.rahma.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.abdelbadi.rahma;
 				PRODUCT_NAME = Rahma;
 				SWIFT_OBJC_BRIDGING_HEADER = "Rahma/Rahma-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -375,6 +375,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Rahma/Rahma.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2L6NUM3YT2;
 				INFOPLIST_FILE = Rahma/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -388,7 +389,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = com.rahma.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.abdelbadi.rahma;
 				PRODUCT_NAME = Rahma;
 				SWIFT_OBJC_BRIDGING_HEADER = "Rahma/Rahma-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
