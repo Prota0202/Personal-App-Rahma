@@ -221,6 +221,87 @@
   cursor: pointer;
 }
 
+.athan-controls {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.sound-label {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.sound-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sound-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.adhan-select {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
+.adhan-select:focus {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.adhan-audio-help {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.adhan-test-button {
+  background: var(--secondary-color);
+  color: #1a1a1a;
+}
+
+.adhan-test-button:hover {
+  background: #f5d03d;
+}
+
+.athan-push {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.athan-push h4 {
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.push-help {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.push-status {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
 .reminder-time-selector {
   display: flex;
   align-items: center;

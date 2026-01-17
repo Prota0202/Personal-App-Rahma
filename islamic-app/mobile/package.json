@@ -1,0 +1,28 @@
+{
+  "name": "rahma-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start",
+    "prebuild": "expo prebuild",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "adhan": "^4.0.0",
+    "date-fns": "^2.30.0",
+    "expo": "^54.0.31",
+    "expo-location": "~19.0.8",
+    "expo-status-bar": "~3.0.9",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.8",
+    "@react-native-community/cli": "^13.6.5",
+    "typescript": "^5.4.5"
+  }
+}

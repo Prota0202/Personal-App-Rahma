@@ -1,0 +1,146 @@
+.azkar-container {
+  width: 100%;
+}
+
+.azkar-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.azkar-header h1 {
+  font-size: 2.5rem;
+  color: var(--primary-color);
+  margin-bottom: 0.5rem;
+}
+
+.subtitle {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+}
+
+.azkar-controls {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.toggle-label input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.categories-section {
+  margin-bottom: 2rem;
+}
+
+.categories-list {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.category-button {
+  padding: 0.75rem 1.5rem;
+  border: 2px solid var(--border-color);
+  background: var(--card-bg);
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: var(--text-primary);
+}
+
+.category-button:hover {
+  border-color: var(--primary-color);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+
+.category-button.active {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+.azkar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.azkar-card {
+  background: var(--card-bg);
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.azkar-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.azkar-arabic {
+  font-size: 1.6rem;
+  line-height: 2.4;
+  text-align: right;
+  padding: 1rem;
+  background: rgba(26, 71, 42, 0.05);
+  border-radius: 10px;
+  border-right: 4px solid var(--primary-color);
+}
+
+.azkar-transliteration {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.azkar-translation {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--text-primary);
+  padding: 0.75rem;
+  background: rgba(26, 71, 42, 0.04);
+  border-radius: 8px;
+  border-left: 4px solid var(--secondary-color);
+}
+
+.azkar-reference {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+@media (max-width: 768px) {
+  .azkar-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .azkar-controls {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .azkar-arabic {
+    font-size: 1.4rem;
+  }
+}

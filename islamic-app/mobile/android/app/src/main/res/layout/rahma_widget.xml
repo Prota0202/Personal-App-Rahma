@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:orientation="vertical"
+  android:padding="12dp"
+  android:background="@android:color/white"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent">
+
+  <TextView
+    android:id="@+id/widget_title"
+    android:text="Rahma"
+    android:textStyle="bold"
+    android:textSize="14sp"
+    android:textColor="#1a1714"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content" />
+
+  <TextView
+    android:id="@+id/widget_prayer_name"
+    android:text="FAJR"
+    android:textSize="20sp"
+    android:textStyle="bold"
+    android:textColor="#1a1714"
+    android:layout_marginTop="8dp"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content" />
+
+  <TextView
+    android:id="@+id/widget_prayer_time"
+    android:text="05:12 AM"
+    android:textSize="16sp"
+    android:textColor="#1a1714"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content" />
+
+  <TextView
+    android:id="@+id/widget_updated"
+    android:text="Updated"
+    android:textSize="12sp"
+    android:textColor="#6b6257"
+    android:layout_marginTop="6dp"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content" />
+</LinearLayout>

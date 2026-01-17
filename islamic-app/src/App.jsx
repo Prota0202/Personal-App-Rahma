@@ -5,6 +5,7 @@ import { useLanguage } from './contexts/LanguageContext'
 import PrayerTimes from './components/PrayerTimes'
 import Quran from './components/Quran'
 import Duaas from './components/Duaas'
+import Azkar from './components/Azkar'
 import Qibla from './components/Qibla'
 import Tasbih from './components/Tasbih'
 import IslamicCalendar from './components/IslamicCalendar'
@@ -24,6 +25,7 @@ function Navigation() {
     { path: '/prayer-times', label: t('prayerTimes'), icon: '🕌' },
     { path: '/quran', label: t('quran'), icon: '📖' },
     { path: '/duaas', label: t('duaas'), icon: '🤲' },
+    { path: '/azkar', label: t('azkar'), icon: '📿' },
     { path: '/tasbih', label: t('tasbih'), icon: '📿' },
     { path: '/hadiths', label: t('hadiths'), icon: '📚' },
     { path: '/calendar', label: t('calendar'), icon: '📅' },
@@ -87,6 +89,7 @@ function App() {
             <Route path="/prayer-times" element={<PrayerTimes />} />
             <Route path="/quran" element={<Quran />} />
             <Route path="/duaas" element={<Duaas />} />
+            <Route path="/azkar" element={<Azkar />} />
             <Route path="/tasbih" element={<Tasbih />} />
             <Route path="/hadiths" element={<Hadiths />} />
             <Route path="/calendar" element={<IslamicCalendar />} />

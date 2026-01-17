@@ -1,8 +1,17 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Coordinates, CalculationMethod, PrayerTimes as AdhanPrayerTimes } from 'adhan'
 import { format } from 'date-fns'
 import HijriDate from 'hijri-date'
 import { useLanguage } from '../contexts/LanguageContext'
+import adhanSounds, { getAdhanSoundById } from '../data/adhanSounds'
+import {
+  getExistingSubscription,
+  getPushPublicKey,
+  getPushServerUrl,
+  isPushSupported,
+  subscribeToPush,
+  unsubscribeFromPush,
+} from '../utils/pushNotifications'
 import './PrayerTimes.css'
 
 const PrayerTimes = () => {
@@ -15,6 +24,19 @@ const PrayerTimes = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false)
   const [notificationPermission, setNotificationPermission] = useState('default')
   const [reminderMinutes, setReminderMinutes] = useState(5)
+  const [athanAlertsEnabled, setAthanAlertsEnabled] = useState(() => {
+    return localStorage.getItem('athanAlertsEnabled') === 'true'
+  })
+  const [adhanSoundPreference, setAdhanSoundPreference] = useState(() => {
+    return localStorage.getItem('adhanSoundPreference') || 'system'
+  })
+  const [adhanSoundId, setAdhanSoundId] = useState(() => {
+    return localStorage.getItem('adhanSoundId') || adhanSounds[0]?.id
+  })
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushStatus, setPushStatus] = useState('idle')
+  const [pushMessage, setPushMessage] = useState('')
+  const pushSyncTimeoutRef = useRef(null)
   const [prayerReminders, setPrayerReminders] = useState({
     fajr: true,
     dhuhr: true,
@@ -43,6 +65,9 @@ const PrayerTimes = () => {
     const savedReminders = localStorage.getItem('prayerReminders')
     const savedReminderMinutes = localStorage.getItem('reminderMinutes')
     const savedNotificationsEnabled = localStorage.getItem('notificationsEnabled')
+    const savedAthanAlertsEnabled = localStorage.getItem('athanAlertsEnabled')
+    const savedAdhanSoundPreference = localStorage.getItem('adhanSoundPreference')
+    const savedAdhanSoundId = localStorage.getItem('adhanSoundId')
     
     if (savedReminders) {
       setPrayerReminders(JSON.parse(savedReminders))
@@ -53,10 +78,25 @@ const PrayerTimes = () => {
     if (savedNotificationsEnabled) {
       setNotificationsEnabled(JSON.parse(savedNotificationsEnabled))
     }
+    if (savedAthanAlertsEnabled) {
+      setAthanAlertsEnabled(JSON.parse(savedAthanAlertsEnabled))
+    }
+    if (savedAdhanSoundPreference) {
+      setAdhanSoundPreference(savedAdhanSoundPreference)
+    }
+    if (savedAdhanSoundId) {
+      setAdhanSoundId(savedAdhanSoundId)
+    }
 
     // Check notification permission
     if ('Notification' in window) {
       setNotificationPermission(Notification.permission)
+    }
+
+    if (isPushSupported()) {
+      getExistingSubscription().then((sub) => {
+        setPushEnabled(Boolean(sub))
+      })
     }
   }, [])
 
@@ -132,8 +172,20 @@ const PrayerTimes = () => {
 
   // Prayer reminder notifications
   useEffect(() => {
-    if (!prayerTimes || !notificationsEnabled || notificationPermission !== 'granted') {
+    if (!prayerTimes || notificationPermission !== 'granted') {
       return
+    }
+
+    const playAdhanAudio = () => {
+      if (adhanSoundPreference !== 'adhan') return
+      const selectedSound = getAdhanSoundById(adhanSoundId)
+      if (!selectedSound?.src) return
+      try {
+        const audio = new Audio(selectedSound.src)
+        audio.play().catch(() => {})
+      } catch (error) {
+        console.warn('Unable to play adhan audio:', error)
+      }
     }
 
     const checkAndNotify = () => {
@@ -141,8 +193,6 @@ const PrayerTimes = () => {
       const prayerNames = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha']
 
       prayerNames.forEach((prayerName) => {
-        if (!prayerReminders[prayerName]) return
-
         const prayerTime = prayerTimes[prayerName]
         if (!prayerTime) return
 
@@ -150,7 +200,7 @@ const PrayerTimes = () => {
         const timeDiff = reminderTime.getTime() - now.getTime()
 
         // Notify if within 1 minute of reminder time (and not already notified today)
-        if (timeDiff > 0 && timeDiff < 60000) {
+        if (notificationsEnabled && prayerReminders[prayerName] && timeDiff > 0 && timeDiff < 60000) {
           const notificationKey = `reminder_${prayerName}_${format(now, 'yyyy-MM-dd')}`
           if (!localStorage.getItem(notificationKey)) {
             const label = prayerLabels[prayerName]
@@ -163,6 +213,24 @@ const PrayerTimes = () => {
             localStorage.setItem(notificationKey, 'sent')
           }
         }
+
+        if (athanAlertsEnabled) {
+          const athanTimeDiff = prayerTime.getTime() - now.getTime()
+          if (athanTimeDiff > 0 && athanTimeDiff < 60000) {
+            const athanKey = `athan_${prayerName}_${format(now, 'yyyy-MM-dd')}`
+            if (!localStorage.getItem(athanKey)) {
+              const label = prayerLabels[prayerName]
+              new Notification(`${label.name} (${label.arabic})`, {
+                body: `${label.name} prayer time has arrived.`,
+                icon: '/favicon.ico',
+                badge: '/favicon.ico',
+                tag: `athan-${prayerName}`,
+              })
+              playAdhanAudio()
+              localStorage.setItem(athanKey, 'sent')
+            }
+          }
+        }
       })
     }
 
@@ -171,7 +239,16 @@ const PrayerTimes = () => {
     checkAndNotify() // Check immediately
 
     return () => clearInterval(interval)
-  }, [prayerTimes, notificationsEnabled, notificationPermission, reminderMinutes, prayerReminders])
+  }, [
+    prayerTimes,
+    notificationsEnabled,
+    notificationPermission,
+    reminderMinutes,
+    prayerReminders,
+    athanAlertsEnabled,
+    adhanSoundPreference,
+    adhanSoundId,
+  ])
 
   const requestNotificationPermission = async () => {
     if ('Notification' in window) {
@@ -185,6 +262,125 @@ const PrayerTimes = () => {
       alert(t('browserNotSupported'))
     }
   }
+
+  const sendPushSubscription = async (subscription, enabled) => {
+    const serverUrl = getPushServerUrl()
+    if (!serverUrl) {
+      setPushStatus('missing-config')
+      return
+    }
+
+    await fetch(`${serverUrl}/api/push/subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subscription,
+        enabled,
+        location,
+        calculationMethod,
+        prayers: prayerReminders,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      }),
+    })
+  }
+
+  const syncPushSettings = async () => {
+    const serverUrl = getPushServerUrl()
+    if (!serverUrl) {
+      return
+    }
+    const subscription = await getExistingSubscription()
+    if (!subscription) {
+      return
+    }
+    await sendPushSubscription(subscription, true)
+  }
+
+  const handlePushToggle = async () => {
+    if (!isPushSupported()) {
+      setPushStatus('unsupported')
+      return
+    }
+
+    if (Notification.permission !== 'granted') {
+      await requestNotificationPermission()
+    }
+
+    if (Notification.permission !== 'granted') {
+      return
+    }
+
+    const publicKey = getPushPublicKey()
+    if (!publicKey) {
+      setPushStatus('missing-config')
+      return
+    }
+
+    try {
+      setPushStatus('loading')
+      if (pushEnabled) {
+        const existing = await getExistingSubscription()
+        if (existing) {
+          await fetch(`${getPushServerUrl()}/api/push/unsubscribe`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subscription: existing }),
+          })
+        }
+        await unsubscribeFromPush()
+        setPushEnabled(false)
+        setPushStatus('disabled')
+      } else {
+        const subscription = await subscribeToPush()
+        await sendPushSubscription(subscription, true)
+        setPushEnabled(true)
+        setPushStatus('enabled')
+      }
+    } catch (error) {
+      console.error('Push setup failed:', error)
+      setPushStatus('error')
+    }
+  }
+
+  const handlePushTest = async () => {
+    try {
+      const serverUrl = getPushServerUrl()
+      if (!serverUrl) {
+        setPushStatus('missing-config')
+        return
+      }
+      const subscription = await getExistingSubscription()
+      if (!subscription) {
+        return
+      }
+      await fetch(`${serverUrl}/api/push/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription }),
+      })
+      setPushMessage(t('pushTestSent'))
+    } catch (error) {
+      setPushMessage(t('pushTestFailed'))
+    } finally {
+      setTimeout(() => setPushMessage(''), 3000)
+    }
+  }
+
+  useEffect(() => {
+    if (!pushEnabled) return
+    if (pushSyncTimeoutRef.current) {
+      clearTimeout(pushSyncTimeoutRef.current)
+    }
+    pushSyncTimeoutRef.current = setTimeout(() => {
+      syncPushSettings().catch(() => {})
+    }, 800)
+
+    return () => {
+      if (pushSyncTimeoutRef.current) {
+        clearTimeout(pushSyncTimeoutRef.current)
+      }
+    }
+  }, [pushEnabled, prayerReminders, calculationMethod, location])
 
   const handleReminderToggle = (prayer) => {
     const updated = { ...prayerReminders, [prayer]: !prayerReminders[prayer] }
@@ -301,6 +497,17 @@ const PrayerTimes = () => {
                 />
                 {t('enableReminders')}
               </label>
+              <label className="reminder-toggle-label">
+                <input
+                  type="checkbox"
+                  checked={athanAlertsEnabled}
+                  onChange={(e) => {
+                    setAthanAlertsEnabled(e.target.checked)
+                    localStorage.setItem('athanAlertsEnabled', e.target.checked.toString())
+                  }}
+                />
+                {t('enableAthanAlerts')}
+              </label>
               <div className="reminder-time-selector">
                 <label>{t('remindMe')}:</label>
                 <select
@@ -314,6 +521,110 @@ const PrayerTimes = () => {
                   <option value={30}>30 {t('minutesBefore')}</option>
                 </select>
               </div>
+            </div>
+            {athanAlertsEnabled && (
+              <div className="athan-controls">
+                <label className="sound-label">{t('soundPreference')}</label>
+                <div className="sound-options">
+                  <label className="sound-option">
+                    <input
+                      type="radio"
+                      name="adhan-sound"
+                      value="system"
+                      checked={adhanSoundPreference === 'system'}
+                      onChange={() => {
+                        setAdhanSoundPreference('system')
+                        localStorage.setItem('adhanSoundPreference', 'system')
+                      }}
+                    />
+                    {t('soundSystem')}
+                  </label>
+                  <label className="sound-option">
+                    <input
+                      type="radio"
+                      name="adhan-sound"
+                      value="adhan"
+                      checked={adhanSoundPreference === 'adhan'}
+                      onChange={() => {
+                        setAdhanSoundPreference('adhan')
+                        localStorage.setItem('adhanSoundPreference', 'adhan')
+                      }}
+                    />
+                    {t('soundAdhan')}
+                  </label>
+                </div>
+                {adhanSoundPreference === 'adhan' && (
+                  <>
+                    <label className="sound-label" htmlFor="adhan-sound-select">
+                      {t('adhanVoice')}
+                    </label>
+                    <select
+                      id="adhan-sound-select"
+                      value={adhanSoundId}
+                      onChange={(e) => {
+                        setAdhanSoundId(e.target.value)
+                        localStorage.setItem('adhanSoundId', e.target.value)
+                      }}
+                      className="adhan-select"
+                    >
+                      {adhanSounds.map((sound) => (
+                        <option key={sound.id} value={sound.id}>
+                          {sound.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="adhan-audio-help">{t('adhanVoiceHelp')}</p>
+                    <button
+                      type="button"
+                      className="notification-button adhan-test-button"
+                      onClick={() => {
+                        const selectedSound = getAdhanSoundById(adhanSoundId)
+                        if (!selectedSound?.src) return
+                        const audio = new Audio(selectedSound.src)
+                        audio.play().catch(() => {})
+                      }}
+                    >
+                      {t('testAdhanAudio')}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+            <div className="athan-push">
+              <div>
+                <h4>{t('adhanPushTitle')}</h4>
+                <p className="push-help">{t('adhanPushHelp')}</p>
+              </div>
+              <button
+                type="button"
+                className="notification-button"
+                onClick={handlePushToggle}
+                disabled={pushStatus === 'loading'}
+              >
+                {t('enableAthanPush')}
+              </button>
+              {pushEnabled && (
+                <button
+                  type="button"
+                  className="notification-button adhan-test-button"
+                  onClick={handlePushTest}
+                >
+                  {t('sendPushTest')}
+                </button>
+              )}
+              {pushStatus === 'missing-config' && (
+                <p className="push-status">{t('pushSetupRequired')}</p>
+              )}
+              {pushStatus === 'unsupported' && (
+                <p className="push-status">{t('pushUnsupported')}</p>
+              )}
+              {pushEnabled && (
+                <p className="push-status">{t('pushEnabled')}</p>
+              )}
+              {!pushEnabled && pushStatus === 'disabled' && (
+                <p className="push-status">{t('pushDisabled')}</p>
+              )}
+              {pushMessage && <p className="push-status">{pushMessage}</p>}
             </div>
             {notificationsEnabled && (
               <div className="prayer-reminder-list">

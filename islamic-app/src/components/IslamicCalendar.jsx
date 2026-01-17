@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import HijriDate from 'hijri-date'
 import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns'
+import { Coordinates, CalculationMethod, PrayerTimes as AdhanPrayerTimes } from 'adhan'
 import { useLanguage } from '../contexts/LanguageContext'
 import './IslamicCalendar.css'
 
@@ -10,6 +11,8 @@ const IslamicCalendar = () => {
   const [hijriDate, setHijriDate] = useState(null)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [calendarMode, setCalendarMode] = useState('gregorian') // 'gregorian' or 'hijri'
+  const [location, setLocation] = useState({ latitude: 51.5074, longitude: -0.1278 })
+  const [ramadanSchedule, setRamadanSchedule] = useState([])
   const [currentHijriMonth, setCurrentHijriMonth] = useState(() => {
     try {
       const hijri = new HijriDate(new Date())
@@ -50,6 +53,48 @@ const IslamicCalendar = () => {
   useEffect(() => {
     updateHijriDate(selectedDate)
   }, [selectedDate])
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLocation({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          })
+        },
+        () => {}
+      )
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      const params = CalculationMethod.MuslimWorldLeague()
+      const coordinates = new Coordinates(location.latitude, location.longitude)
+      const today = new Date()
+      const schedule = []
+
+      for (let i = 0; i < 7; i += 1) {
+        const date = addDays(today, i)
+        const hijri = new HijriDate(date)
+        if (hijri.getMonth() + 1 !== 9) {
+          continue
+        }
+        const prayers = new AdhanPrayerTimes(coordinates, date, params)
+        schedule.push({
+          date,
+          hijriDay: hijri.getDate(),
+          fajr: prayers.fajr,
+          maghrib: prayers.maghrib,
+        })
+      }
+
+      setRamadanSchedule(schedule)
+    } catch (error) {
+      setRamadanSchedule([])
+    }
+  }, [location])
 
   const updateHijriDate = (date) => {
     try {
@@ -371,6 +416,7 @@ const IslamicCalendar = () => {
   }
 
   const calendarDays = calendarMode === 'hijri' ? getHijriCalendarDays() : getGregorianCalendarDays()
+  const isRamadanToday = hijriDate?.month === 9
 
   const navigateMonth = (direction) => {
     if (calendarMode === 'hijri') {
@@ -430,6 +476,34 @@ const IslamicCalendar = () => {
           )}
         </div>
       </div>
+
+      {isRamadanToday && (
+        <div className="ramadan-schedule">
+          <h3>🌙 {t('ramadanSchedule')}</h3>
+          {ramadanSchedule.length > 0 ? (
+            <div className="ramadan-table">
+              {ramadanSchedule.map((entry) => (
+                <div key={entry.date.toISOString()} className="ramadan-row">
+                  <div className="ramadan-day">
+                    <span>{format(entry.date, 'EEE, MMM d')}</span>
+                    <span className="ramadan-hijri">({entry.hijriDay} Ramadan)</span>
+                  </div>
+                  <div className="ramadan-time">
+                    <span>{t('suhoorEnds')}</span>
+                    <strong>{format(entry.fajr, 'h:mm a')}</strong>
+                  </div>
+                  <div className="ramadan-time">
+                    <span>{t('iftarTime')}</span>
+                    <strong>{format(entry.maghrib, 'h:mm a')}</strong>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="ramadan-note">{t('locationNeeded')}</p>
+          )}
+        </div>
+      )}
 
       <div className="calendar-controls">
         <div className="calendar-mode-toggle">

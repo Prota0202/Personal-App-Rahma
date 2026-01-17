@@ -111,6 +111,42 @@
   margin-bottom: 2rem;
 }
 
+.qibla-tips {
+  background: var(--card-bg);
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  margin: 2rem 0;
+}
+
+.qibla-tips h3 {
+  color: var(--primary-color);
+  margin-bottom: 0.75rem;
+  font-size: 1.3rem;
+}
+
+.qibla-tips ul {
+  list-style: none;
+  padding: 0;
+}
+
+.qibla-tips li {
+  padding: 0.5rem 0;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.qibla-tips li:last-child {
+  border-bottom: none;
+}
+
+.qibla-tips li::before {
+  content: '• ';
+  color: var(--secondary-color);
+  font-weight: bold;
+  margin-right: 0.5rem;
+}
+
 .info-card {
   background: var(--card-bg);
   padding: 1.5rem;

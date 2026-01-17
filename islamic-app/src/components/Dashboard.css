@@ -5,6 +5,9 @@
 .dashboard-header {
   text-align: center;
   margin-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .dashboard-header h1 {
@@ -15,6 +18,34 @@
 
 .dashboard-date {
   font-size: 1.2rem;
+  color: var(--text-secondary);
+}
+
+.dashboard-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.location-pill {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(26, 71, 42, 0.08);
+  border: 1px solid rgba(26, 71, 42, 0.15);
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.location-label {
+  font-weight: 600;
+}
+
+.location-coords {
   color: var(--text-secondary);
 }
 
@@ -35,18 +66,24 @@
   border-radius: 16px;
   box-shadow: var(--shadow);
   transition: all 0.3s ease;
-  border: 2px solid transparent;
+  border: 1px solid var(--border-color);
   position: relative;
   display: flex;
   flex-direction: column;
   text-decoration: none;
   color: inherit;
+  overflow: hidden;
 }
 
 .dashboard-card:hover {
   transform: translateY(-4px);
   box-shadow: var(--shadow-lg);
   border-color: var(--primary-color);
+}
+
+.dashboard-card:focus-visible {
+  outline: 3px solid rgba(26, 71, 42, 0.35);
+  outline-offset: 2px;
 }
 
 .next-prayer-card {
@@ -159,7 +196,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 0.75rem;
-  background: rgba(26, 71, 42, 0.05);
+  background: rgba(26, 71, 42, 0.06);
   border-radius: 8px;
 }
 
@@ -176,26 +213,209 @@
 .daily-reminder {
   grid-column: span 2;
   background: linear-gradient(135deg, rgba(26, 71, 42, 0.1) 0%, rgba(45, 90, 61, 0.1) 100%);
-  border: 2px solid var(--primary-color);
+  border: 1px solid rgba(26, 71, 42, 0.4);
 }
 
-.reminder-arabic {
-  font-size: 1.8rem;
-  margin: 1rem 0;
+.reminder-text {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  margin-top: 0.75rem;
+  line-height: 1.6;
+}
+
+.ramadan-card {
+  grid-column: span 2;
+  border: 1px solid rgba(185, 152, 78, 0.4);
+  background: linear-gradient(135deg, rgba(185, 152, 78, 0.08), rgba(31, 61, 43, 0.08));
+}
+
+.ramadan-day {
+  font-weight: 700;
+  color: var(--primary-color);
+  margin-top: 0.5rem;
+}
+
+.ramadan-times {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.ramadan-label {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.ramadan-time {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ramadan-countdown {
+  margin-top: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.ramadan-note {
+  margin-top: 0.5rem;
+  color: var(--text-secondary);
+}
+
+.continue-card {
+  grid-column: span 2;
+}
+
+.continue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.continue-item {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s ease;
+}
+
+.continue-item:hover {
+  border-color: var(--primary-color);
+  box-shadow: var(--shadow);
+}
+
+.continue-label {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.continue-value {
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.continue-action {
+  font-size: 0.9rem;
   color: var(--primary-color);
   font-weight: 600;
 }
 
-.reminder-translation {
-  font-style: italic;
+.continue-empty {
   color: var(--text-secondary);
-  font-size: 1.1rem;
+  font-style: italic;
+}
+
+.reminder-notifications {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.reminder-notifications h4 {
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.notification-button {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.notification-button:hover {
+  background: var(--primary-light);
+  transform: translateY(-2px);
+}
+
+.notification-status {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.reminder-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.reminder-toggle-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
+
+.reminder-time-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.reminder-time-label {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.reminder-time-input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
+.reminder-time-input:focus {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.reminder-test-button {
+  background: var(--secondary-color);
+  color: #1a1a1a;
+}
+
+.reminder-test-button:hover {
+  background: #f5d03d;
 }
 
 @media (max-width: 768px) {
+  .dashboard-header {
+    text-align: left;
+  }
+
+  .dashboard-meta {
+    align-items: flex-start;
+  }
+
   .next-prayer-card,
   .prayer-times-summary,
-  .daily-reminder {
+  .daily-reminder,
+  .ramadan-card,
+  .continue-card {
     grid-column: span 1;
   }
 

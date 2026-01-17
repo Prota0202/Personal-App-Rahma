@@ -163,6 +163,15 @@ const Qibla = () => {
             </div>
           </div>
 
+          <div className="qibla-tips">
+            <h3>{t('qiblaTipsTitle')}</h3>
+            <ul>
+              <li>{t('qiblaTipFlat')}</li>
+              <li>{t('qiblaTipCalibrate')}</li>
+              <li>{t('qiblaTipAccuracy')}</li>
+            </ul>
+          </div>
+
           <div className="qibla-info">
             <div className="info-card">
               <div className="info-label">{t('qiblaDirectionLabel')}</div>
