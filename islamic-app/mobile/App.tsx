@@ -4,8 +4,10 @@ import * as Notifications from 'expo-notifications'
 import { StatusBar } from 'expo-status-bar'
 import { format } from 'date-fns'
 import HijriDate from 'hijri-date'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  Animated,
+  Easing,
   NativeModules,
   SafeAreaView,
   ScrollView,
@@ -13,6 +15,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TextStyle,
   TouchableOpacity,
   View,
 } from 'react-native'
@@ -25,6 +28,8 @@ import { hadithOverrides } from './src/data/hadithOverrides'
 import { buildPrayerTimes, formatTime, getNextPrayer } from './src/utils/prayerTimes'
 import { readJson, updateCounter, writeJson } from './src/utils/storage'
 import { loadWidgetSnapshot, saveWidgetSnapshot } from './src/utils/widgetStore'
+import { useTranslation } from 'react-i18next'
+import i18n from './src/i18n'
 
 type TabKey =
   | 'home'
@@ -38,20 +43,8 @@ type TabKey =
   | 'favorites'
   | 'stats'
   | 'qibla'
+  | 'language'
 
-const TABS: Array<{ key: TabKey; label: string; icon: string }> = [
-  { key: 'home', label: 'Accueil', icon: '🏠' },
-  { key: 'prayer', label: 'Prière', icon: '🕌' },
-  { key: 'quran', label: 'Coran', icon: '📖' },
-  { key: 'duaas', label: 'Douas', icon: '🤲' },
-  { key: 'azkar', label: 'Azkar', icon: '📿' },
-  { key: 'tasbih', label: 'Tasbih', icon: '🔖' },
-  { key: 'hadiths', label: 'Hadiths', icon: '📚' },
-  { key: 'calendar', label: 'Calendrier', icon: '📅' },
-  { key: 'favorites', label: 'Favoris', icon: '⭐' },
-  { key: 'stats', label: 'Stats', icon: '📊' },
-  { key: 'qibla', label: 'Qibla', icon: '🧭' },
-]
 
 type FavoriteVerse = {
   id: string
@@ -129,6 +122,7 @@ const PRAYER_ALERTS_KEY = 'rahma.prayerAlerts'
 const PRAYER_REMINDERS_KEY = 'rahma.prayerReminders'
 const PRAYER_NOTIFICATION_IDS_KEY = 'rahma.prayerNotifications'
 const LAST_READS_KEY = 'rahma.lastReads'
+const LANGUAGE_KEY = 'rahma.language'
 const HADITH_BATCH_SIZE = 10
 const HADITH_COLLECTIONS = [
   { id: 'eng-bukhari', name: 'Sahih al Bukhari' },
@@ -155,7 +149,9 @@ Notifications.setNotificationHandler({
 })
 
 export default function App() {
-  const [status, setStatus] = useState('Requesting location...')
+  const [language, setLanguage] = useState<'fr' | 'en' | 'ar'>('fr')
+  const [languageLoaded, setLanguageLoaded] = useState(false)
+  const [status, setStatus] = useState('')
   const [nextPrayerLabel, setNextPrayerLabel] = useState('—')
   const [nextPrayerTime, setNextPrayerTime] = useState('—')
   const [activeTab, setActiveTab] = useState<TabKey>('home')
@@ -170,6 +166,8 @@ export default function App() {
   })
   const [lastReads, setLastReads] = useState<LastReads>({})
   const [stats, setStats] = useState<Record<string, number>>({})
+  const activeTabRef = useRef<TabKey>('home')
+  const tabStartRef = useRef<number>(Date.now())
   const [selectedSurah, setSelectedSurah] = useState<Surah | null>(null)
   const [surahs, setSurahs] = useState<Surah[]>([])
   const [ayahs, setAyahs] = useState<Ayah[]>([])
@@ -196,6 +194,14 @@ export default function App() {
   const [hadithVisibleCount, setHadithVisibleCount] = useState(HADITH_BATCH_SIZE)
   const [hadithLoading, setHadithLoading] = useState(false)
   const [hadithError, setHadithError] = useState<string | null>(null)
+  const [heading, setHeading] = useState<number | null>(null)
+  const [headingAccuracy, setHeadingAccuracy] = useState<number | null>(null)
+  const [qiblaHeading, setQiblaHeading] = useState<number | null>(null)
+  const needleRotation = useRef(new Animated.Value(0))
+  const lastRotation = useRef(0)
+  const faceRotation = useRef(new Animated.Value(0))
+  const lastFaceRotation = useRef(0)
+  const smoothHeading = useRef<number | null>(null)
   const [dailyReminderEnabled, setDailyReminderEnabled] = useState(false)
   const [dailyReminderTime, setDailyReminderTime] = useState(() => {
     const base = new Date()
@@ -203,6 +209,7 @@ export default function App() {
     return base
   })
   const [showDailyPicker, setShowDailyPicker] = useState(false)
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [notificationPermission, setNotificationPermission] = useState<'granted' | 'denied' | 'undetermined'>(
     'undetermined'
   )
@@ -219,11 +226,37 @@ export default function App() {
     isha: true,
   })
 
+  const { t } = useTranslation()
+  const isRTL = language === 'ar'
+  const textAlignStyle = useMemo<TextStyle>(
+    () => ({ textAlign: isRTL ? 'right' : 'left' }),
+    [isRTL]
+  )
+
+  const tabs = useMemo(
+    () => [
+      { key: 'home' as TabKey, label: t('tabHome'), icon: '🏠' },
+      { key: 'prayer' as TabKey, label: t('tabPrayer'), icon: '🕌' },
+      { key: 'quran' as TabKey, label: t('tabQuran'), icon: '📖' },
+      { key: 'duaas' as TabKey, label: t('tabDuaas'), icon: '🤲' },
+      { key: 'azkar' as TabKey, label: t('tabAzkar'), icon: '📿' },
+      { key: 'tasbih' as TabKey, label: t('tabTasbih'), icon: '🔖' },
+      { key: 'hadiths' as TabKey, label: t('tabHadiths'), icon: '📚' },
+      { key: 'calendar' as TabKey, label: t('tabCalendar'), icon: '📅' },
+      { key: 'favorites' as TabKey, label: t('tabFavorites'), icon: '⭐' },
+      { key: 'stats' as TabKey, label: t('tabStats'), icon: '📊' },
+      { key: 'qibla' as TabKey, label: t('tabQibla'), icon: '🧭' },
+      { key: 'language' as TabKey, label: t('tabLanguage'), icon: '🌐' },
+    ],
+    [t]
+  )
+
   useEffect(() => {
     const init = async () => {
+      setStatus(t('locationRequest'))
       const { status: permissionStatus } = await Location.requestForegroundPermissionsAsync()
       if (permissionStatus !== 'granted') {
-        setStatus('Location permission denied.')
+        setStatus(t('locationDenied'))
         return
       }
 
@@ -234,7 +267,7 @@ export default function App() {
 
       setNextPrayerLabel(nextPrayer.key.toUpperCase())
       setNextPrayerTime(formatTime(nextPrayer.time))
-      setStatus('Location ready')
+      setStatus(t('locationReady'))
       setLocationLabel(`${latitude.toFixed(2)}, ${longitude.toFixed(2)}`)
       setPrayerTimes(prayers)
 
@@ -252,8 +285,23 @@ export default function App() {
       }
     }
 
-    init().catch(() => setStatus('Unable to fetch location.'))
+    init().catch(() => setStatus(t('locationError')))
+  }, [t])
+
+  useEffect(() => {
+    readJson<'fr' | 'en' | 'ar'>(LANGUAGE_KEY, 'fr').then((value) => {
+      setLanguage(value)
+      setShowTranslation(value === 'en')
+      setLanguageLoaded(true)
+    })
   }, [])
+
+  useEffect(() => {
+    if (!languageLoaded) return
+    writeJson(LANGUAGE_KEY, language)
+    setShowTranslation(language === 'en')
+    i18n.changeLanguage(language)
+  }, [language, languageLoaded])
 
   useEffect(() => {
     readJson<FavoritesState>(FAVORITES_KEY, { verses: [], duaas: [], hadiths: [] }).then(
@@ -263,6 +311,17 @@ export default function App() {
     readJson<number>(TASBIH_KEY, 0).then(setTasbihSessionTotal)
     readJson<LastReads>(LAST_READS_KEY, {}).then(setLastReads)
   }, [])
+
+  useEffect(() => {
+    const now = Date.now()
+    const prevTab = activeTabRef.current
+    const elapsedSec = Math.max(0, Math.round((now - tabStartRef.current) / 1000))
+    if (elapsedSec > 0) {
+      updateCounter(STATS_KEY, `time_${prevTab}`, elapsedSec).then(setStats)
+    }
+    activeTabRef.current = activeTab
+    tabStartRef.current = now
+  }, [activeTab])
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -293,10 +352,84 @@ export default function App() {
       )
       setAdhanSoundId(savedPrayerSettings.soundId ?? ADHAN_SOUNDS[0]?.id ?? 'mishary')
       setPrayerSwitches(savedPrayerSettings.switches)
+      setSettingsLoaded(true)
     }
 
     loadSettings()
   }, [])
+
+  useEffect(() => {
+    let subscription: Location.LocationSubscription | null = null
+    const start = async () => {
+      try {
+        subscription = await Location.watchHeadingAsync((update) => {
+          const nextHeading =
+            Number.isFinite(update.trueHeading) && update.trueHeading >= 0
+              ? update.trueHeading
+              : update.magHeading
+          const current = smoothHeading.current
+          const alpha = 0.2
+          const smooth = current === null ? nextHeading : current + ((nextHeading - current + 540) % 360 - 180) * alpha
+          smoothHeading.current = (smooth + 360) % 360
+          setHeading(smoothHeading.current)
+          setHeadingAccuracy(update.accuracy ?? null)
+        })
+      } catch {
+        setHeading(null)
+        setHeadingAccuracy(null)
+      }
+    }
+    start()
+    return () => {
+      subscription?.remove()
+    }
+  }, [])
+
+  useEffect(() => {
+    const [latStr, lonStr] = locationLabel.split(',').map((item) => item.trim())
+    const lat = Number(latStr)
+    const lon = Number(lonStr)
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      setQiblaHeading(null)
+      return
+    }
+    const kaabaLat = 21.4225
+    const kaabaLon = 39.8262
+    const toRad = (value: number) => (value * Math.PI) / 180
+    const toDeg = (value: number) => (value * 180) / Math.PI
+    const computed =
+      (toDeg(
+        Math.atan2(
+          Math.sin(toRad(kaabaLon - lon)),
+          Math.cos(toRad(lat)) * Math.tan(toRad(kaabaLat)) -
+            Math.sin(toRad(lat)) * Math.cos(toRad(kaabaLon - lon))
+        )
+      ) + 360) % 360
+    setQiblaHeading(computed)
+    if (heading === null) return
+    const rotation = (computed - heading + 360) % 360
+    const current = lastRotation.current
+    const delta = ((rotation - current + 540) % 360) - 180
+    const next = current + delta
+    lastRotation.current = next
+    Animated.timing(needleRotation.current, {
+      toValue: next,
+      duration: 180,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start()
+    const faceTarget = (360 - heading) % 360
+    const faceCurrent = lastFaceRotation.current
+    const faceDelta = ((faceTarget - faceCurrent + 540) % 360) - 180
+    const faceNext = faceCurrent + faceDelta
+    lastFaceRotation.current = faceNext
+    Animated.timing(faceRotation.current, {
+      toValue: faceNext,
+      duration: 180,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start()
+  }, [heading, locationLabel])
 
   useEffect(() => {
     if (!selectedHadithCollection) return
@@ -334,28 +467,28 @@ export default function App() {
             if (!englishText && !arabicText) return null
             const translation = englishText || 'Traduction indisponible pour ce hadith.'
             return {
-              id: item.hadithnumber,
-              collection: collectionName,
+          id: item.hadithnumber,
+          collection: collectionName,
               title: `Hadith ${item.hadithnumber}`,
               arabic: arabicText,
-              transliteration: '',
+          transliteration: '',
               translation,
-              reference: `${collectionName} ${item.reference?.hadith ?? item.hadithnumber}`,
+          reference: `${collectionName} ${item.reference?.hadith ?? item.hadithnumber}`,
             }
           })
           .filter((item): item is (typeof seedHadiths)[number] => item !== null)
         setHadithItems(mapped)
         if (selectedHadithCollection === 'eng-nawawi') {
           setHadithVisibleCount(mapped.length)
-          setHadithHasMore(false)
+        setHadithHasMore(false)
         } else {
           const initialCount = Math.min(HADITH_BATCH_SIZE, mapped.length)
           setHadithVisibleCount(initialCount)
           setHadithHasMore(mapped.length > initialCount)
         }
       } catch {
-        setHadithError('Impossible de charger les hadiths.')
-        setHadithItems(seedHadiths)
+        setHadithError(t('hadithLoadError'))
+          setHadithItems(seedHadiths)
         const initialCount = Math.min(HADITH_BATCH_SIZE, seedHadiths.length)
         setHadithVisibleCount(initialCount)
         setHadithHasMore(seedHadiths.length > initialCount)
@@ -384,10 +517,10 @@ export default function App() {
           }))
           setSurahs(formatted)
         } else {
-          setQuranError('Impossible de charger les sourates.')
+          setQuranError(t('surahLoadError'))
         }
       } catch {
-        setQuranError('Erreur de connexion.')
+        setQuranError(t('connectionError'))
       } finally {
         setQuranLoading(false)
       }
@@ -419,10 +552,10 @@ export default function App() {
           setAyahs(combined)
           setQuranError(null)
         } else {
-          setQuranError('Impossible de charger la sourate.')
+          setQuranError(t('surahLoadErrorOne'))
         }
       } catch {
-        setQuranError('Erreur de connexion.')
+        setQuranError(t('connectionError'))
       } finally {
         setQuranLoading(false)
       }
@@ -439,6 +572,9 @@ export default function App() {
 
   const getDailyReminderMessage = (date = new Date()) => {
     if (!dailyReminders?.length) return ''
+    if (language !== 'fr') {
+      return t('reminderBody')
+    }
     const dayOfYear = getDayOfYear(date)
     return dailyReminders[(dayOfYear - 1) % dailyReminders.length]
   }
@@ -466,7 +602,7 @@ export default function App() {
     const message = getDailyReminderMessage(time)
     const id = await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Rappel du jour',
+        title: t('dailyReminder'),
         body: message,
         sound: 'default',
       },
@@ -488,11 +624,11 @@ export default function App() {
     const now = new Date()
     const notificationIds: string[] = []
     const prayers = [
-      { key: 'fajr', label: 'Fajr' },
-      { key: 'dhuhr', label: 'Dhuhr' },
-      { key: 'asr', label: 'Asr' },
-      { key: 'maghrib', label: 'Maghrib' },
-      { key: 'isha', label: 'Isha' },
+      { key: 'fajr', label: t('prayerFajr') },
+      { key: 'dhuhr', label: t('prayerDhuhr') },
+      { key: 'asr', label: t('prayerAsr') },
+      { key: 'maghrib', label: t('prayerMaghrib') },
+      { key: 'isha', label: t('prayerIsha') },
     ] as const
 
     for (const prayer of prayers) {
@@ -504,8 +640,8 @@ export default function App() {
         if (reminderTime > now) {
           const reminderId = await Notifications.scheduleNotificationAsync({
             content: {
-              title: `Rappel ${prayer.label}`,
-              body: `${prayer.label} dans ${prayerReminderMinutes} minutes.`,
+              title: t('prayerReminderTitle', { prayer: prayer.label }),
+              body: t('prayerReminderBody', { prayer: prayer.label, minutes: prayerReminderMinutes }),
               sound: 'default',
             },
             trigger: reminderTime,
@@ -521,7 +657,7 @@ export default function App() {
         const prayerId = await Notifications.scheduleNotificationAsync({
           content: {
             title: `${prayer.label} (${prayer.key.toUpperCase()})`,
-            body: `L'heure de ${prayer.label} est arrivée.`,
+            body: t('prayerAlertBody', { prayer: prayer.label }),
             sound,
           },
           trigger: time,
@@ -535,12 +671,12 @@ export default function App() {
 
   const quickActions = useMemo(
     () => [
-      { key: 'prayer' as TabKey, label: 'Horaires', icon: '🕌' },
-      { key: 'quran' as TabKey, label: 'Coran', icon: '📖' },
-      { key: 'azkar' as TabKey, label: 'Azkar', icon: '📿' },
-      { key: 'qibla' as TabKey, label: 'Qibla', icon: '🧭' },
+      { key: 'prayer' as TabKey, label: t('quickPrayer'), icon: '🕌' },
+      { key: 'quran' as TabKey, label: t('quickQuran'), icon: '📖' },
+      { key: 'azkar' as TabKey, label: t('quickAzkar'), icon: '📿' },
+      { key: 'qibla' as TabKey, label: t('quickQibla'), icon: '🧭' },
     ],
-    []
+    [t]
   )
 
   const bumpStat = useCallback(async (field: string) => {
@@ -548,7 +684,17 @@ export default function App() {
     setStats(next)
   }, [])
 
+  const formatDuration = (totalSeconds = 0) => {
+    const hours = Math.floor(totalSeconds / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    const seconds = totalSeconds % 60
+    if (hours > 0) return `${hours}h ${minutes}m`
+    if (minutes > 0) return `${minutes}m ${seconds}s`
+    return `${seconds}s`
+  }
+
   useEffect(() => {
+    if (!settingsLoaded) return
     writeJson(DAILY_REMINDER_KEY, dailyReminderEnabled)
     writeJson(DAILY_REMINDER_TIME_KEY, dailyReminderTime.toISOString())
     if (!dailyReminderEnabled) {
@@ -560,6 +706,7 @@ export default function App() {
   }, [dailyReminderEnabled, dailyReminderTime, notificationPermission])
 
   useEffect(() => {
+    if (!settingsLoaded) return
     writeJson(PRAYER_ALERTS_KEY, {
       alertsEnabled: prayerAlertsEnabled,
       reminderEnabled: prayerReminderEnabled,
@@ -647,38 +794,40 @@ export default function App() {
     if (!prayerTimes) {
       return (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Horaires de prière</Text>
-          <Text style={styles.sectionSubtitle}>{status}</Text>
+          <Text style={[styles.sectionTitle, textAlignStyle]}>{t('prayerTimes')}</Text>
+          <Text style={[styles.sectionSubtitle, textAlignStyle]}>{status}</Text>
         </View>
       )
     }
 
     const rows: Array<{ label: string; key: keyof typeof prayerTimes }> = [
-      { label: 'Fajr', key: 'fajr' },
-      { label: 'Sunrise', key: 'sunrise' },
-      { label: 'Dhuhr', key: 'dhuhr' },
-      { label: 'Asr', key: 'asr' },
-      { label: 'Maghrib', key: 'maghrib' },
-      { label: 'Isha', key: 'isha' },
+      { label: t('prayerFajr'), key: 'fajr' },
+      { label: t('prayerSunrise'), key: 'sunrise' },
+      { label: t('prayerDhuhr'), key: 'dhuhr' },
+      { label: t('prayerAsr'), key: 'asr' },
+      { label: t('prayerMaghrib'), key: 'maghrib' },
+      { label: t('prayerIsha'), key: 'isha' },
     ]
 
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Horaires de prière</Text>
-        <Text style={styles.sectionSubtitle}>Coordonnées: {locationLabel}</Text>
+        <Text style={[styles.sectionTitle, textAlignStyle]}>{t('prayerTimes')}</Text>
+        <Text style={[styles.sectionSubtitle, textAlignStyle]}>
+          {t('coordinates')}: {locationLabel}
+        </Text>
         <View style={styles.card}>
           {rows.map((row) => (
             <View key={row.key} style={styles.row}>
-              <Text style={styles.rowLabel}>{row.label}</Text>
+              <Text style={[styles.rowLabel, textAlignStyle]}>{row.label}</Text>
               <Text style={styles.rowValue}>{formatTime(prayerTimes[row.key])}</Text>
             </View>
           ))}
         </View>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notifications</Text>
+          <Text style={[styles.sectionTitle, textAlignStyle]}>{t('notifSection')}</Text>
           <View style={styles.card}>
             <View style={styles.row}>
-              <Text style={styles.rowLabel}>Rappels avant prière</Text>
+              <Text style={[styles.rowLabel, textAlignStyle]}>{t('prePrayerReminders')}</Text>
               <Switch
                 value={prayerReminderEnabled}
                 onValueChange={async (value) => {
@@ -692,7 +841,7 @@ export default function App() {
             </View>
             {prayerReminderEnabled && (
               <View style={styles.row}>
-                <Text style={styles.rowLabel}>Minutes avant</Text>
+                <Text style={[styles.rowLabel, textAlignStyle]}>{t('minutesBefore')}</Text>
                 <TextInput
                   value={String(prayerReminderMinutes)}
                   onChangeText={(value) => {
@@ -705,7 +854,7 @@ export default function App() {
               </View>
             )}
             <View style={styles.row}>
-              <Text style={styles.rowLabel}>Alertes Athan</Text>
+              <Text style={[styles.rowLabel, textAlignStyle]}>{t('adhanAlerts')}</Text>
               <Switch
                 value={prayerAlertsEnabled}
                 onValueChange={async (value) => {
@@ -719,7 +868,7 @@ export default function App() {
             </View>
             {prayerAlertsEnabled && (
               <>
-                <Text style={styles.sectionSubtitle}>Son de notification</Text>
+                <Text style={[styles.sectionSubtitle, textAlignStyle]}>{t('notificationSound')}</Text>
                 <View style={styles.chipRow}>
                   {(['system', 'adhan'] as const).map((value) => (
                     <TouchableOpacity
@@ -736,14 +885,14 @@ export default function App() {
                           adhanSoundPreference === value && styles.chipTextActive,
                         ]}
                       >
-                        {value === 'system' ? 'Son système' : 'Adhan'}
+                        {value === 'system' ? t('systemSound') : t('adhanSound')}
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
                 {adhanSoundPreference === 'adhan' && (
                   <>
-                    <Text style={styles.sectionSubtitle}>Voix</Text>
+                    <Text style={[styles.sectionSubtitle, textAlignStyle]}>{t('voice')}</Text>
                     <View style={styles.chipRow}>
                       {ADHAN_SOUNDS.map((sound) => (
                         <TouchableOpacity
@@ -766,7 +915,7 @@ export default function App() {
                       ))}
                     </View>
                     <TouchableOpacity style={styles.secondaryButton} onPress={playAdhanSample}>
-                      <Text style={styles.secondaryButtonText}>Tester l’adhan</Text>
+                      <Text style={styles.secondaryButtonText}>{t('testAdhan')}</Text>
                     </TouchableOpacity>
                   </>
                 )}
@@ -774,11 +923,11 @@ export default function App() {
             )}
           </View>
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Prières activées</Text>
+            <Text style={[styles.sectionTitle, textAlignStyle]}>{t('enabledPrayers')}</Text>
             <View style={styles.card}>
               {rows.map((row) => (
                 <View key={row.key} style={styles.row}>
-                  <Text style={styles.rowLabel}>{row.label}</Text>
+                  <Text style={[styles.rowLabel, textAlignStyle]}>{row.label}</Text>
                   <Switch
                     value={prayerSwitches[row.key as keyof typeof prayerSwitches]}
                     onValueChange={(value) =>
@@ -794,67 +943,86 @@ export default function App() {
     )
   }
 
-  const renderQuran = () => {
-    if (selectedSurah) {
-      return (
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => setSelectedSurah(null)}
-          >
-            <Text style={styles.backButtonText}>← Retour aux sourates</Text>
-          </TouchableOpacity>
-          <Text style={styles.sectionTitle}>{selectedSurah.arabic}</Text>
-          <Text style={styles.sectionSubtitle}>
+  const renderQuranSelected = () => {
+    if (!selectedSurah) return null
+    const header = (
+      <View style={[styles.quranHeader, isRTL && styles.quranHeaderRTL]}>
+        <TouchableOpacity
+          style={[styles.backButton, isRTL && styles.backButtonRTL]}
+          onPress={() => setSelectedSurah(null)}
+        >
+          <Text style={[styles.backButtonText, textAlignStyle]}>{t('backToSurahs')}</Text>
+        </TouchableOpacity>
+        <View style={styles.quranHeaderTitles}>
+          <Text style={[styles.sectionTitle, textAlignStyle]}>{selectedSurah.arabic}</Text>
+          <Text style={[styles.sectionSubtitle, textAlignStyle]}>
             {selectedSurah.name} · {selectedSurah.english}
           </Text>
+        </View>
+      </View>
+    )
+
+    const body = (
+      <View style={styles.section}>
+        {language === 'en' && (
           <TouchableOpacity
             style={styles.toggleButton}
             onPress={() => setShowTranslation((prev) => !prev)}
           >
             <Text style={styles.toggleButtonText}>
-              {showTranslation ? 'Masquer la traduction' : 'Afficher la traduction'}
+              {showTranslation ? t('hideTranslation') : t('showTranslation')}
             </Text>
           </TouchableOpacity>
-          {quranLoading ? (
-            <Text style={styles.sectionSubtitle}>Chargement...</Text>
-          ) : quranError ? (
-            <Text style={styles.sectionSubtitle}>{quranError}</Text>
-          ) : (
-            <View style={styles.list}>
-              {ayahs.map((ayah) => {
-                const verseId = `${selectedSurah.number}-${ayah.number}`
-                const isFavorite = favorites.verses.some((item) => item.id === verseId)
-                return (
-                  <View key={verseId} style={styles.card}>
-                    <View style={styles.row}>
-                      <Text style={styles.rowLabel}>Ayah {ayah.number}</Text>
-                      <TouchableOpacity
-                        onPress={() =>
-                          toggleFavoriteVerse({
-                            id: verseId,
-                            surahNumber: selectedSurah.number,
-                            surahName: selectedSurah.name,
-                            ayahNumber: ayah.number,
-                            text: ayah.text,
-                            translation: ayah.translation,
-                          })
-                        }
-                      >
-                        <Text style={styles.favoriteIcon}>{isFavorite ? '★' : '☆'}</Text>
-                      </TouchableOpacity>
-                    </View>
-                    <Text style={styles.arabicText}>{ayah.text}</Text>
-                    {showTranslation && (
-                      <Text style={styles.translationText}>{ayah.translation}</Text>
-                    )}
+        )}
+        {quranLoading ? (
+          <Text style={[styles.sectionSubtitle, textAlignStyle]}>{t('loading')}</Text>
+        ) : quranError ? (
+          <Text style={[styles.sectionSubtitle, textAlignStyle]}>{quranError}</Text>
+        ) : (
+          <View style={styles.list}>
+            {ayahs.map((ayah) => {
+              const verseId = `${selectedSurah.number}-${ayah.number}`
+              const isFavorite = favorites.verses.some((item) => item.id === verseId)
+              return (
+                <View key={verseId} style={styles.card}>
+                  <View style={styles.row}>
+                    <Text style={[styles.rowLabel, textAlignStyle]}>
+                      {t('ayahLabel')} {ayah.number}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() =>
+                        toggleFavoriteVerse({
+                          id: verseId,
+                          surahNumber: selectedSurah.number,
+                          surahName: selectedSurah.name,
+                          ayahNumber: ayah.number,
+                          text: ayah.text,
+                          translation: ayah.translation,
+                        })
+                      }
+                    >
+                      <Text style={styles.favoriteIcon}>{isFavorite ? '★' : '☆'}</Text>
+                    </TouchableOpacity>
                   </View>
-                )
-              })}
-            </View>
-          )}
-        </View>
-      )
+                  <Text style={styles.arabicText}>{ayah.text}</Text>
+                  {showTranslation && language === 'en' && (
+                    <Text style={styles.translationText}>{ayah.translation}</Text>
+                  )}
+                </View>
+              )
+            })}
+          </View>
+        )}
+      </View>
+    )
+
+    return { header, body }
+  }
+
+  const renderQuran = () => {
+    if (selectedSurah) {
+      const parts = renderQuranSelected()
+      return parts ? [parts.header, parts.body] : null
     }
 
     const filteredSurahs = surahs.filter((surah) => {
@@ -869,17 +1037,17 @@ export default function App() {
 
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Le Coran</Text>
-        <Text style={styles.sectionSubtitle}>Choisis une sourate</Text>
+        <Text style={[styles.sectionTitle, textAlignStyle]}>{t('quranTitle')}</Text>
+        <Text style={[styles.sectionSubtitle, textAlignStyle]}>{t('chooseSurah')}</Text>
         <TextInput
           value={quranSearch}
           onChangeText={setQuranSearch}
-          placeholder="Rechercher une sourate"
-          style={styles.searchInput}
+          placeholder={t('searchSurah')}
+          style={[styles.searchInput, textAlignStyle]}
           placeholderTextColor="#6b6257"
         />
-        {quranLoading && <Text style={styles.sectionSubtitle}>Chargement...</Text>}
-        {quranError && <Text style={styles.sectionSubtitle}>{quranError}</Text>}
+        {quranLoading && <Text style={[styles.sectionSubtitle, textAlignStyle]}>{t('loading')}</Text>}
+        {quranError && <Text style={[styles.sectionSubtitle, textAlignStyle]}>{quranError}</Text>}
         <View style={styles.list}>
           {filteredSurahs.map((surah) => (
             <TouchableOpacity
@@ -888,6 +1056,7 @@ export default function App() {
               onPress={() => {
                 setSelectedSurah(surah)
                 bumpStat('quranReads')
+                updateCounter(STATS_KEY, 'quranAyahs', surah.ayahs).then(setStats)
                 const nextReads = {
                   ...lastReads,
                   quran: { surahNumber: surah.number, surahName: surah.name },
@@ -900,7 +1069,7 @@ export default function App() {
                 {surah.number}. {surah.name}
               </Text>
               <Text style={styles.listSubtitle}>{surah.arabic}</Text>
-              <Text style={styles.listMeta}>{surah.ayahs} ayahs</Text>
+              <Text style={styles.listMeta}>{t('ayahsCount', { count: surah.ayahs })}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -910,7 +1079,7 @@ export default function App() {
 
   const renderDuaas = () => (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Douas</Text>
+      <Text style={[styles.sectionTitle, textAlignStyle]}>{t('duaasTitle')}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
         {duaaCategories.map((category) => (
           <TouchableOpacity
@@ -938,7 +1107,7 @@ export default function App() {
       {selectedDuaa ? (
         <View style={styles.card}>
           <View style={styles.row}>
-            <Text style={styles.sectionTitle}>{selectedDuaa.title}</Text>
+            <Text style={[styles.sectionTitle, textAlignStyle]}>{selectedDuaa.title}</Text>
             <TouchableOpacity
               onPress={() => toggleFavoriteDuaa(selectedDuaa)}
             >
@@ -948,14 +1117,18 @@ export default function App() {
             </TouchableOpacity>
           </View>
           <Text style={styles.arabicText}>{selectedDuaa.arabic}</Text>
-          <Text style={styles.translationText}>{selectedDuaa.transliteration}</Text>
-          <Text style={styles.translationText}>{selectedDuaa.translation}</Text>
+          {language !== 'ar' && (
+            <Text style={styles.translationText}>{selectedDuaa.transliteration}</Text>
+          )}
+          {language === 'fr' && (
+            <Text style={styles.translationText}>{selectedDuaa.translation}</Text>
+          )}
           <Text style={styles.listMeta}>{selectedDuaa.reference}</Text>
           <TouchableOpacity
             style={styles.secondaryButton}
             onPress={() => setSelectedDuaaId(null)}
           >
-            <Text style={styles.secondaryButtonText}>Retour à la liste</Text>
+            <Text style={styles.secondaryButtonText}>{t('backToList')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -983,7 +1156,7 @@ export default function App() {
 
   const renderAzkar = () => (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Azkar</Text>
+      <Text style={[styles.sectionTitle, textAlignStyle]}>{t('azkarTitle')}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
         {azkarCategories.map((category) => (
           <TouchableOpacity
@@ -1010,10 +1183,14 @@ export default function App() {
       </ScrollView>
       {selectedAzkar ? (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>{selectedAzkar.title}</Text>
+          <Text style={[styles.sectionTitle, textAlignStyle]}>{selectedAzkar.title}</Text>
           <Text style={styles.arabicText}>{selectedAzkar.arabic}</Text>
-          <Text style={styles.translationText}>{selectedAzkar.transliteration}</Text>
-          <Text style={styles.translationText}>{selectedAzkar.translation}</Text>
+          {language !== 'ar' && (
+            <Text style={styles.translationText}>{selectedAzkar.transliteration}</Text>
+          )}
+          {language === 'fr' && (
+            <Text style={styles.translationText}>{selectedAzkar.translation}</Text>
+          )}
           {selectedAzkar.reference && (
             <Text style={styles.listMeta}>{selectedAzkar.reference}</Text>
           )}
@@ -1021,7 +1198,7 @@ export default function App() {
             style={styles.secondaryButton}
             onPress={() => setSelectedAzkarId(null)}
           >
-            <Text style={styles.secondaryButtonText}>Retour à la liste</Text>
+            <Text style={styles.secondaryButtonText}>{t('backToList')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -1077,21 +1254,21 @@ export default function App() {
 
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Tasbih</Text>
-        <Text style={styles.sectionSubtitle}>Compteur de dhikr</Text>
+        <Text style={[styles.sectionTitle, textAlignStyle]}>{t('tasbihTitle')}</Text>
+        <Text style={[styles.sectionSubtitle, textAlignStyle]}>{t('tasbihSubtitle')}</Text>
         <View style={styles.card}>
           <Text style={styles.arabicText}>{current.arabic}</Text>
           <View style={styles.row}>
-            <Text style={styles.rowLabel}>Compteur</Text>
+            <Text style={[styles.rowLabel, textAlignStyle]}>{t('counter')}</Text>
             <Text style={styles.rowValue}>
               {tasbihCount}/{current.target}
             </Text>
           </View>
           <TouchableOpacity style={styles.primaryButton} onPress={handleCount}>
-            <Text style={styles.primaryButtonText}>Compter</Text>
+            <Text style={styles.primaryButtonText}>{t('countButton')}</Text>
           </TouchableOpacity>
           <View style={styles.row}>
-            <Text style={styles.rowLabel}>Total session</Text>
+            <Text style={[styles.rowLabel, textAlignStyle]}>{t('sessionTotal')}</Text>
             <Text style={styles.rowValue}>{tasbihSessionTotal}</Text>
           </View>
         </View>
@@ -1128,11 +1305,11 @@ export default function App() {
             style={styles.backButton}
             onPress={() => setSelectedHadithId(null)}
           >
-            <Text style={styles.backButtonText}>← Retour aux hadiths</Text>
+            <Text style={[styles.backButtonText, textAlignStyle]}>{t('backToHadiths')}</Text>
           </TouchableOpacity>
           <View style={styles.card}>
             <View style={styles.row}>
-              <Text style={styles.sectionTitle}>{selectedHadith.title}</Text>
+              <Text style={[styles.sectionTitle, textAlignStyle]}>{selectedHadith.title}</Text>
               <TouchableOpacity
                 onPress={() => toggleFavoriteHadith(selectedHadith)}
               >
@@ -1142,8 +1319,12 @@ export default function App() {
               </TouchableOpacity>
             </View>
             <Text style={styles.arabicText}>{selectedHadith.arabic}</Text>
-            <Text style={styles.translationText}>{selectedHadith.transliteration}</Text>
-            <Text style={styles.translationText}>{selectedHadith.translation}</Text>
+            {language !== 'ar' && (
+              <Text style={styles.translationText}>{selectedHadith.transliteration}</Text>
+            )}
+            {language === 'en' && (
+              <Text style={styles.translationText}>{selectedHadith.translation}</Text>
+            )}
             <Text style={styles.listMeta}>
               {selectedHadith.collection} · {selectedHadith.reference}
             </Text>
@@ -1166,7 +1347,7 @@ export default function App() {
 
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Hadiths</Text>
+        <Text style={[styles.sectionTitle, textAlignStyle]}>{t('hadithsTitle')}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
           {HADITH_COLLECTIONS.map((collection) => (
             <TouchableOpacity
@@ -1196,17 +1377,17 @@ export default function App() {
         <TextInput
           value={hadithSearch}
           onChangeText={setHadithSearch}
-          placeholder="Rechercher un hadith"
-          style={styles.searchInput}
+          placeholder={t('searchHadith')}
+          style={[styles.searchInput, textAlignStyle]}
           placeholderTextColor="#6b6257"
         />
-        <Text style={styles.sectionSubtitle}>
+        <Text style={[styles.sectionSubtitle, textAlignStyle]}>
           {hadithSearch
-            ? `Résultats: ${filtered.length}`
-            : `Affichés: ${Math.min(visibleItems.length, hadithItems.length)} / ${hadithItems.length}`}
+            ? `${t('results')}: ${filtered.length}`
+            : `${t('shown')}: ${Math.min(visibleItems.length, hadithItems.length)} / ${hadithItems.length}`}
         </Text>
-        {hadithLoading && <Text style={styles.sectionSubtitle}>Chargement...</Text>}
-        {hadithError && <Text style={styles.sectionSubtitle}>{hadithError}</Text>}
+        {hadithLoading && <Text style={[styles.sectionSubtitle, textAlignStyle]}>{t('loading')}</Text>}
+        {hadithError && <Text style={[styles.sectionSubtitle, textAlignStyle]}>{hadithError}</Text>}
         <View style={styles.list}>
           {visibleItems.map((hadith) => (
             <TouchableOpacity
@@ -1235,7 +1416,7 @@ export default function App() {
               setHadithHasMore(nextCount < hadithItems.length)
             }}
           >
-            <Text style={styles.secondaryButtonText}>Charger plus</Text>
+            <Text style={styles.secondaryButtonText}>{t('loadMore')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -1247,7 +1428,7 @@ export default function App() {
     const hijri = new HijriDate(today)
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Calendrier</Text>
+        <Text style={[styles.sectionTitle, textAlignStyle]}>{t('calendarTitle')}</Text>
         <View style={styles.card}>
           <Text style={styles.listTitle}>{format(today, 'EEEE d MMMM yyyy')}</Text>
           <Text style={styles.listSubtitle}>
@@ -1260,24 +1441,24 @@ export default function App() {
 
   const renderFavorites = () => (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Favoris</Text>
-      <Text style={styles.sectionSubtitle}>Versets, douas et hadiths</Text>
+      <Text style={[styles.sectionTitle, textAlignStyle]}>{t('favoritesTitle')}</Text>
+      <Text style={[styles.sectionSubtitle, textAlignStyle]}>{t('favoritesSubtitle')}</Text>
       {favorites.verses.length === 0 && favorites.duaas.length === 0 && favorites.hadiths.length === 0 ? (
-        <Text style={styles.sectionSubtitle}>Aucun favori pour le moment.</Text>
+        <Text style={[styles.sectionSubtitle, textAlignStyle]}>{t('noFavorites')}</Text>
       ) : (
         <View style={styles.list}>
           {favorites.verses.map((item) => (
             <View key={item.id} style={styles.listCard}>
               <View style={styles.row}>
                 <Text style={styles.listTitle}>
-                  {item.surahName} · Ayah {item.ayahNumber}
+                  {item.surahName} · {t('ayahLabel')} {item.ayahNumber}
                 </Text>
                 <TouchableOpacity onPress={() => toggleFavoriteVerse(item)}>
                   <Text style={styles.favoriteIcon}>✕</Text>
                 </TouchableOpacity>
               </View>
               <Text style={styles.arabicText}>{item.text}</Text>
-              {item.translation && (
+              {language === 'en' && item.translation && (
                 <Text style={styles.translationText}>{item.translation}</Text>
               )}
             </View>
@@ -1291,7 +1472,9 @@ export default function App() {
                 </TouchableOpacity>
               </View>
               <Text style={styles.arabicText}>{item.arabic}</Text>
-              <Text style={styles.translationText}>{item.translation}</Text>
+              {language === 'fr' && (
+                <Text style={styles.translationText}>{item.translation}</Text>
+              )}
             </View>
           ))}
           {favorites.hadiths.map((item) => (
@@ -1303,7 +1486,9 @@ export default function App() {
                 </TouchableOpacity>
               </View>
               <Text style={styles.arabicText}>{item.arabic}</Text>
-              <Text style={styles.translationText}>{item.translation}</Text>
+              {language === 'en' && (
+                <Text style={styles.translationText}>{item.translation}</Text>
+              )}
             </View>
           ))}
         </View>
@@ -1313,62 +1498,134 @@ export default function App() {
 
   const renderStats = () => (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Statistiques</Text>
-      <View style={styles.card}>
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>Coran</Text>
-          <Text style={styles.rowValue}>{stats.quranReads || 0}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>Douas</Text>
-          <Text style={styles.rowValue}>{stats.duaaReads || 0}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>Azkar</Text>
-          <Text style={styles.rowValue}>{stats.azkarReads || 0}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>Hadiths</Text>
-          <Text style={styles.rowValue}>{stats.hadithReads || 0}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>Tasbih</Text>
-          <Text style={styles.rowValue}>{stats.tasbihCounts || 0}</Text>
-        </View>
+      <Text style={[styles.sectionTitle, textAlignStyle]}>{t('statsTitle')}</Text>
+      <Text style={[styles.sectionSubtitle, textAlignStyle]}>{t('statsSubtitle')}</Text>
+      <View style={styles.list}>
+        {[
+          {
+            key: 'quran',
+            icon: '📖',
+            label: t('statsQuran'),
+            value: Math.ceil((stats.quranAyahs || 0) / 20),
+            last: lastReads.quran ? `${lastReads.quran.surahName}` : t('statsNone'),
+          },
+          {
+            key: 'duaa',
+            icon: '🤲',
+            label: t('statsDuaas'),
+            value: stats.duaaReads || 0,
+            last: lastReads.duaa ? `${lastReads.duaa.title}` : t('statsNone'),
+          },
+          {
+            key: 'azkar',
+            icon: '📿',
+            label: t('statsAzkar'),
+            value: stats.azkarReads || 0,
+            last: t('statsNone'),
+          },
+          {
+            key: 'hadith',
+            icon: '📚',
+            label: t('statsHadiths'),
+            value: stats.hadithReads || 0,
+            last: lastReads.hadith ? `${lastReads.hadith.title}` : t('statsNone'),
+          },
+          {
+            key: 'tasbih',
+            icon: '🧿',
+            label: t('statsTasbih'),
+            value: stats.tasbihCounts || 0,
+            last: t('sessionTotal'),
+          },
+        ].map((item) => (
+          <View key={item.key} style={styles.listCard}>
+            <View style={styles.row}>
+              <Text style={styles.actionIcon}>{item.icon}</Text>
+              <Text style={[styles.listTitle, textAlignStyle]}>{item.label}</Text>
+              <Text style={styles.rowValue}>{item.value}</Text>
+            </View>
+            <Text style={[styles.listSubtitle, textAlignStyle]}>
+              {t('statsLastRead')}: {item.last}
+            </Text>
+            <View style={styles.row}>
+              <Text style={[styles.rowLabel, textAlignStyle]}>
+                {item.key === 'quran' ? t('statsPages') : t('statsTime')}
+              </Text>
+              <Text style={styles.rowValue}>
+                {item.key === 'quran'
+                  ? Math.max(0, Math.ceil((stats.quranAyahs || 0) / 20))
+                  : formatDuration(stats[`time_${item.key}`] || 0)}
+              </Text>
+            </View>
+            {item.key === 'quran' && (
+              <View style={styles.row}>
+                <Text style={[styles.rowLabel, textAlignStyle]}>{t('statsTime')}</Text>
+                <Text style={styles.rowValue}>
+                  {formatDuration(stats.time_quran || 0)}
+                </Text>
+              </View>
+            )}
+          </View>
+        ))}
       </View>
     </View>
   )
 
   const renderQibla = () => {
-    const [latStr, lonStr] = locationLabel.split(',').map((item) => item.trim())
-    const lat = Number(latStr)
-    const lon = Number(lonStr)
-    const kaabaLat = 21.4225
-    const kaabaLon = 39.8262
-    const toRad = (value: number) => (value * Math.PI) / 180
-    const toDeg = (value: number) => (value * 180) / Math.PI
-    const bearing =
-      Number.isFinite(lat) && Number.isFinite(lon)
-        ? (toDeg(
-            Math.atan2(
-              Math.sin(toRad(kaabaLon - lon)),
-              Math.cos(toRad(lat)) * Math.tan(toRad(kaabaLat)) -
-                Math.sin(toRad(lat)) * Math.cos(toRad(kaabaLon - lon))
-            )
-          ) + 360) % 360
-        : null
+    const rotationAvailable = heading !== null && qiblaHeading !== null
+    const animatedRotation = needleRotation.current.interpolate({
+      inputRange: [-720, 720],
+      outputRange: ['-720deg', '720deg'],
+    })
+    const animatedFaceRotation = faceRotation.current.interpolate({
+      inputRange: [-720, 720],
+      outputRange: ['-720deg', '720deg'],
+    })
+    const ticks = Array.from({ length: 60 }, (_, index) => index)
 
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Qibla</Text>
+        <Text style={[styles.sectionTitle, textAlignStyle]}>{t('qiblaTitle')}</Text>
         <View style={styles.card}>
-          <Text style={styles.sectionSubtitle}>Orientation recommandée</Text>
+          <Text style={[styles.sectionSubtitle, textAlignStyle]}>{t('qiblaOrientation')}</Text>
+          {!rotationAvailable ? (
+            <Text style={[styles.sectionSubtitle, textAlignStyle]}>{t('qiblaUnavailable')}</Text>
+          ) : (
+            <View style={styles.compassContainer}>
+              <View style={styles.compassCircle}>
+                <Animated.View style={[styles.compassFace, { transform: [{ rotate: animatedFaceRotation }] }]}>
+                  {ticks.map((tick) => (
+                    <View
+                      key={`tick-${tick}`}
+                      style={[
+                        styles.compassTick,
+                        tick % 5 === 0 ? styles.compassTickMajor : styles.compassTickMinor,
+                        { transform: [{ rotate: `${tick * 6}deg` }] },
+                      ]}
+                    />
+                  ))}
+                  <Text style={[styles.compassCardinal, styles.compassNorth]}>N</Text>
+                  <Text style={[styles.compassCardinal, styles.compassEast]}>E</Text>
+                  <Text style={[styles.compassCardinal, styles.compassSouth]}>S</Text>
+                  <Text style={[styles.compassCardinal, styles.compassWest]}>W</Text>
+                </Animated.View>
+                <Animated.View style={[styles.compassNeedle, { transform: [{ rotate: animatedRotation }] }]}>
+                  <View style={styles.compassNeedleHead} />
+                  <Text style={styles.compassKaaba}>🕋</Text>
+                  <View style={styles.compassNeedleShaft} />
+                </Animated.View>
+              </View>
+            </View>
+          )}
           <Text style={styles.qiblaValue}>
-            {bearing === null ? '—' : `${bearing.toFixed(0)}°`}
+            {qiblaHeading === null ? '—' : `${qiblaHeading.toFixed(0)}°`}
           </Text>
+          {headingAccuracy !== null && rotationAvailable && (
           <Text style={styles.sectionSubtitle}>
-            Tiens le téléphone à plat et oriente-toi vers cet angle.
+              {t('qiblaAccuracy')}: ±{Math.round(headingAccuracy)}°
           </Text>
+          )}
+          <Text style={[styles.sectionSubtitle, textAlignStyle]}>{t('qiblaHint')}</Text>
         </View>
       </View>
     )
@@ -1378,11 +1635,11 @@ export default function App() {
     const reminder = getDailyReminderMessage(new Date())
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Rappel du jour</Text>
+        <Text style={[styles.sectionTitle, textAlignStyle]}>{t('dailyReminder')}</Text>
         <View style={styles.card}>
           <Text style={styles.translationText}>{reminder}</Text>
           <View style={styles.row}>
-            <Text style={styles.rowLabel}>Notifications</Text>
+            <Text style={[styles.rowLabel, textAlignStyle]}>{t('notifications')}</Text>
             <Switch
               value={dailyReminderEnabled}
               onValueChange={async (value) => {
@@ -1399,7 +1656,7 @@ export default function App() {
             onPress={() => setShowDailyPicker(true)}
           >
             <Text style={styles.secondaryButtonText}>
-              Heure: {format(dailyReminderTime, 'HH:mm')}
+              {t('timeLabel')}: {format(dailyReminderTime, 'HH:mm')}
             </Text>
           </TouchableOpacity>
           {showDailyPicker && (
@@ -1418,17 +1675,38 @@ export default function App() {
               const allowed = notificationPermission === 'granted' || (await requestNotificationPermission())
               if (!allowed) return
               await Notifications.presentNotificationAsync({
-                title: 'Rappel du jour',
+                title: t('dailyReminder'),
                 body: reminder,
               })
             }}
           >
-            <Text style={styles.primaryButtonText}>Tester la notification</Text>
+            <Text style={styles.primaryButtonText}>{t('testNotification')}</Text>
           </TouchableOpacity>
         </View>
       </View>
     )
   }
+
+  const renderLanguage = () => (
+    <View style={styles.section}>
+      <Text style={[styles.sectionTitle, textAlignStyle]}>{t('languageTitle')}</Text>
+      <View style={styles.card}>
+        <View style={styles.chipRow}>
+          {(['fr', 'en', 'ar'] as const).map((value) => (
+            <TouchableOpacity
+              key={value}
+              style={[styles.chip, language === value && styles.chipActive]}
+              onPress={() => setLanguage(value)}
+            >
+              <Text style={[styles.chipText, language === value && styles.chipTextActive]}>
+                {value.toUpperCase()}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+    </View>
+  )
 
   const getDaysUntilRamadan = () => {
     const today = new Date()
@@ -1446,18 +1724,18 @@ export default function App() {
   const renderHome = () => (
     <View>
       <View style={styles.hero}>
-        <Text style={styles.heroTitle}>Rahma</Text>
-        <Text style={styles.heroSubtitle}>Votre compagnon spirituel mobile.</Text>
+        <Text style={[styles.heroTitle, textAlignStyle]}>{t('heroTitle')}</Text>
+        <Text style={[styles.heroSubtitle, textAlignStyle]}>{t('heroSubtitle')}</Text>
       </View>
       <View style={styles.card}>
-        <Text style={styles.cardLabel}>Prochaine prière</Text>
+        <Text style={[styles.cardLabel, textAlignStyle]}>{t('nextPrayer')}</Text>
         <Text style={styles.cardValue}>{nextPrayerLabel}</Text>
         <Text style={styles.cardTime}>{nextPrayerTime}</Text>
       </View>
       {renderDailyReminder()}
       {(lastReads.quran || lastReads.duaa || lastReads.hadith) && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Continuer la lecture</Text>
+          <Text style={[styles.sectionTitle, textAlignStyle]}>{t('continueReading')}</Text>
           <View style={styles.list}>
             {lastReads.quran && (
               <TouchableOpacity
@@ -1468,8 +1746,10 @@ export default function App() {
                   setActiveTab('quran')
                 }}
               >
-                <Text style={styles.listTitle}>Coran · {lastReads.quran.surahName}</Text>
-                <Text style={styles.listSubtitle}>Reprendre la lecture</Text>
+                <Text style={[styles.listTitle, textAlignStyle]}>
+                  {t('tabQuran')} · {lastReads.quran.surahName}
+                </Text>
+                <Text style={[styles.listSubtitle, textAlignStyle]}>{t('resume')}</Text>
               </TouchableOpacity>
             )}
             {lastReads.duaa && (
@@ -1480,8 +1760,10 @@ export default function App() {
                   setSelectedDuaaId(lastReads.duaa?.id ?? null)
                 }}
               >
-                <Text style={styles.listTitle}>Doua · {lastReads.duaa.title}</Text>
-                <Text style={styles.listSubtitle}>Reprendre</Text>
+                <Text style={[styles.listTitle, textAlignStyle]}>
+                  {t('tabDuaas')} · {lastReads.duaa.title}
+                </Text>
+                <Text style={[styles.listSubtitle, textAlignStyle]}>{t('resume')}</Text>
               </TouchableOpacity>
             )}
             {lastReads.hadith && (
@@ -1492,8 +1774,10 @@ export default function App() {
                   setSelectedHadithId(lastReads.hadith?.id ?? null)
                 }}
               >
-                <Text style={styles.listTitle}>Hadith · {lastReads.hadith.title}</Text>
-                <Text style={styles.listSubtitle}>Reprendre</Text>
+                <Text style={[styles.listTitle, textAlignStyle]}>
+                  {t('tabHadiths')} · {lastReads.hadith.title}
+                </Text>
+                <Text style={[styles.listSubtitle, textAlignStyle]}>{t('resume')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1505,24 +1789,24 @@ export default function App() {
         const daysUntilRamadan = isRamadan ? 0 : getDaysUntilRamadan()
         return (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Ramadan</Text>
+            <Text style={[styles.sectionTitle, textAlignStyle]}>{t('ramadanTitle')}</Text>
             <View style={styles.card}>
               {isRamadan ? (
-                <Text style={styles.listTitle}>Ramadan Kareem 🌙</Text>
+                <Text style={[styles.listTitle, textAlignStyle]}>{t('ramadanKareem')}</Text>
               ) : (
-                <Text style={styles.listTitle}>
+                <Text style={[styles.listTitle, textAlignStyle]}>
                   {daysUntilRamadan !== null
-                    ? `Ramadan dans ${daysUntilRamadan} jours`
-                    : 'Ramadan prochain'}
+                    ? t('ramadanIn', { days: daysUntilRamadan })
+                    : t('ramadanNext')}
                 </Text>
               )}
-              <Text style={styles.listSubtitle}>Prépare tes objectifs spirituels.</Text>
+              <Text style={[styles.listSubtitle, textAlignStyle]}>{t('ramadanPrompt')}</Text>
             </View>
           </View>
         )
       })()}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Raccourcis</Text>
+        <Text style={[styles.sectionTitle, textAlignStyle]}>{t('shortcuts')}</Text>
         <View style={styles.actionGrid}>
           {quickActions.map((action) => (
             <TouchableOpacity
@@ -1563,18 +1847,28 @@ export default function App() {
         return renderStats()
       case 'qibla':
         return renderQibla()
+      case 'language':
+        return renderLanguage()
       default:
         return renderHome()
     }
   }
 
+  const content = renderContent()
+  const stickyHeaderIndices =
+    activeTab === 'quran' && selectedSurah ? [0] : undefined
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {renderContent()}
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        stickyHeaderIndices={stickyHeaderIndices}
+      >
+        {content}
       </ScrollView>
       <View style={styles.tabBar}>
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <TouchableOpacity
             key={tab.key}
             style={[styles.tabItem, activeTab === tab.key && styles.tabItemActive]}
@@ -1752,7 +2046,11 @@ const styles = StyleSheet.create({
     color: '#1a1714',
   },
   backButton: {
-    marginBottom: 12,
+    marginRight: 12,
+  },
+  backButtonRTL: {
+    marginRight: 0,
+    marginLeft: 12,
   },
   backButtonText: {
     color: '#6b6257',
@@ -1827,6 +2125,101 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1a1714',
   },
+  compassContainer: {
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  compassCircle: {
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: '#fffdf8',
+    borderWidth: 1,
+    borderColor: '#e5ded0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compassFace: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: 110,
+  },
+  compassTick: {
+    position: 'absolute',
+    top: 8,
+    left: '50%',
+    backgroundColor: '#c9aa5a',
+  },
+  compassTickMajor: {
+    width: 3,
+    height: 16,
+    transform: [{ translateX: -1.5 }],
+  },
+  compassTickMinor: {
+    width: 2,
+    height: 10,
+    transform: [{ translateX: -1 }],
+    opacity: 0.6,
+  },
+  compassCardinal: {
+    position: 'absolute',
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1a1714',
+  },
+  compassNorth: {
+    top: 12,
+    left: '50%',
+    transform: [{ translateX: -6 }],
+  },
+  compassEast: {
+    right: 14,
+    top: '50%',
+    transform: [{ translateY: -8 }],
+  },
+  compassSouth: {
+    bottom: 10,
+    left: '50%',
+    transform: [{ translateX: -6 }],
+  },
+  compassWest: {
+    left: 14,
+    top: '50%',
+    transform: [{ translateY: -8 }],
+  },
+  compassNeedle: {
+    width: 24,
+    height: 140,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  compassNeedleHead: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderBottomWidth: 16,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#c0392b',
+    marginBottom: 6,
+  },
+  compassKaaba: {
+    fontSize: 24,
+  },
+  compassNeedleShaft: {
+    width: 3,
+    flex: 1,
+    backgroundColor: '#1a1714',
+    borderRadius: 2,
+    marginTop: 6,
+  },
+  compassNeedleTail: {
+    width: 2,
+    height: 40,
+    backgroundColor: '#1a1714',
+  },
   placeholderCard: {
     marginTop: 12,
     padding: 16,
@@ -1858,6 +2251,20 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e5ded0',
     gap: 6,
+  },
+  quranHeader: {
+    paddingTop: 6,
+    paddingBottom: 12,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f1e8',
+  },
+  quranHeaderRTL: {
+    flexDirection: 'row-reverse',
+  },
+  quranHeaderTitles: {
+    flex: 1,
   },
   tabItem: {
     flexBasis: '23%',
