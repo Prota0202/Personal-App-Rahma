@@ -20,7 +20,8 @@ import * as Location from 'expo-location'
 import dailyReminders from './src/data/dailyReminders'
 import { azkarCategories } from './src/data/azkar'
 import { duaaCategories } from './src/data/duaas'
-import { hadiths } from './src/data/hadiths'
+import { hadiths as seedHadiths } from './src/data/hadiths'
+import { hadithOverrides } from './src/data/hadithOverrides'
 import { buildPrayerTimes, formatTime, getNextPrayer } from './src/utils/prayerTimes'
 import { readJson, updateCounter, writeJson } from './src/utils/storage'
 import { loadWidgetSnapshot, saveWidgetSnapshot } from './src/utils/widgetStore'
@@ -44,7 +45,7 @@ const TABS: Array<{ key: TabKey; label: string; icon: string }> = [
   { key: 'quran', label: 'Coran', icon: '📖' },
   { key: 'duaas', label: 'Douas', icon: '🤲' },
   { key: 'azkar', label: 'Azkar', icon: '📿' },
-  { key: 'tasbih', label: 'Tasbih', icon: '🧿' },
+  { key: 'tasbih', label: 'Tasbih', icon: '🔖' },
   { key: 'hadiths', label: 'Hadiths', icon: '📚' },
   { key: 'calendar', label: 'Calendrier', icon: '📅' },
   { key: 'favorites', label: 'Favoris', icon: '⭐' },
@@ -106,6 +107,18 @@ type Ayah = {
   translation: string
 }
 
+type HadithEditionResponse = {
+  metadata?: {
+    name?: string
+    sections?: Record<string, string>
+  }
+  hadiths?: Array<{
+    hadithnumber: number
+    text?: string
+    reference?: { hadith?: number }
+  }>
+}
+
 const FAVORITES_KEY = 'rahma.favorites'
 const STATS_KEY = 'rahma.stats'
 const TASBIH_KEY = 'rahma.tasbih.session'
@@ -116,6 +129,13 @@ const PRAYER_ALERTS_KEY = 'rahma.prayerAlerts'
 const PRAYER_REMINDERS_KEY = 'rahma.prayerReminders'
 const PRAYER_NOTIFICATION_IDS_KEY = 'rahma.prayerNotifications'
 const LAST_READS_KEY = 'rahma.lastReads'
+const HADITH_BATCH_SIZE = 10
+const HADITH_COLLECTIONS = [
+  { id: 'eng-bukhari', name: 'Sahih al Bukhari' },
+  { id: 'eng-muslim', name: 'Sahih Muslim' },
+  { id: 'eng-nawawi', name: 'Nawawi 40' },
+]
+const getArabicEditionId = (englishId: string) => englishId.replace(/^eng-/, 'ara-')
 
 const ADHAN_SOUNDS = [
   {
@@ -168,6 +188,14 @@ export default function App() {
   )
   const [selectedHadithId, setSelectedHadithId] = useState<number | null>(null)
   const [hadithSearch, setHadithSearch] = useState('')
+  const [hadithItems, setHadithItems] = useState(seedHadiths)
+  const [selectedHadithCollection, setSelectedHadithCollection] = useState(
+    HADITH_COLLECTIONS[0]?.id ?? ''
+  )
+  const [hadithHasMore, setHadithHasMore] = useState(true)
+  const [hadithVisibleCount, setHadithVisibleCount] = useState(HADITH_BATCH_SIZE)
+  const [hadithLoading, setHadithLoading] = useState(false)
+  const [hadithError, setHadithError] = useState<string | null>(null)
   const [dailyReminderEnabled, setDailyReminderEnabled] = useState(false)
   const [dailyReminderTime, setDailyReminderTime] = useState(() => {
     const base = new Date()
@@ -269,6 +297,75 @@ export default function App() {
 
     loadSettings()
   }, [])
+
+  useEffect(() => {
+    if (!selectedHadithCollection) return
+    const loadHadiths = async () => {
+      try {
+        setHadithLoading(true)
+        setHadithError(null)
+        const englishUrl = `https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/${selectedHadithCollection}.min.json`
+        const arabicId = getArabicEditionId(selectedHadithCollection)
+        const arabicUrl = `https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/${arabicId}.min.json`
+        const [englishResponse, arabicResponse] = await Promise.all([
+          fetch(englishUrl),
+          fetch(arabicUrl),
+        ])
+        if (!englishResponse.ok) {
+          throw new Error('No edition')
+        }
+        const englishData = (await englishResponse.json()) as HadithEditionResponse
+        const arabicData = arabicResponse.ok
+          ? ((await arabicResponse.json()) as HadithEditionResponse)
+          : null
+        if (!englishData?.hadiths?.length) {
+          setHadithHasMore(false)
+          return
+        }
+        const arabicByNumber = new Map(
+          (arabicData?.hadiths ?? []).map((item) => [item.hadithnumber, item.text ?? ''])
+        )
+        const collectionName = englishData.metadata?.name || selectedHadithCollection
+        const mapped = englishData.hadiths
+          .map((item) => {
+            const override = hadithOverrides[selectedHadithCollection]?.[item.hadithnumber]
+            const englishText = (override?.translation ?? item.text ?? '').trim()
+            const arabicText = (override?.arabic ?? arabicByNumber.get(item.hadithnumber) ?? '').trim()
+            if (!englishText && !arabicText) return null
+            const translation = englishText || 'Traduction indisponible pour ce hadith.'
+            return {
+              id: item.hadithnumber,
+              collection: collectionName,
+              title: `Hadith ${item.hadithnumber}`,
+              arabic: arabicText,
+              transliteration: '',
+              translation,
+              reference: `${collectionName} ${item.reference?.hadith ?? item.hadithnumber}`,
+            }
+          })
+          .filter((item): item is (typeof seedHadiths)[number] => item !== null)
+        setHadithItems(mapped)
+        if (selectedHadithCollection === 'eng-nawawi') {
+          setHadithVisibleCount(mapped.length)
+          setHadithHasMore(false)
+        } else {
+          const initialCount = Math.min(HADITH_BATCH_SIZE, mapped.length)
+          setHadithVisibleCount(initialCount)
+          setHadithHasMore(mapped.length > initialCount)
+        }
+      } catch {
+        setHadithError('Impossible de charger les hadiths.')
+        setHadithItems(seedHadiths)
+        const initialCount = Math.min(HADITH_BATCH_SIZE, seedHadiths.length)
+        setHadithVisibleCount(initialCount)
+        setHadithHasMore(seedHadiths.length > initialCount)
+      } finally {
+        setHadithLoading(false)
+      }
+    }
+
+    loadHadiths()
+  }, [selectedHadithCollection])
 
   useEffect(() => {
     const fetchSurahs = async () => {
@@ -544,7 +641,7 @@ export default function App() {
     azkarCategories[0]
   const selectedAzkar =
     selectedAzkarCategoryData?.items.find((item) => item.id === selectedAzkarId) ?? null
-  const selectedHadith = hadiths.find((item) => item.id === selectedHadithId) ?? null
+  const selectedHadith = hadithItems.find((item) => item.id === selectedHadithId) ?? null
 
   const renderPrayerTimes = () => {
     if (!prayerTimes) {
@@ -1055,18 +1152,47 @@ export default function App() {
       )
     }
 
-    const filtered = hadiths.filter((hadith) => {
+    const filtered = hadithItems.filter((hadith) => {
       if (!hadithSearch) return true
       const query = hadithSearch.toLowerCase()
       return (
         hadith.title.toLowerCase().includes(query) ||
-        hadith.collection.toLowerCase().includes(query)
+        hadith.collection.toLowerCase().includes(query) ||
+        hadith.arabic.includes(hadithSearch) ||
+        hadith.translation.toLowerCase().includes(query)
       )
     })
+    const visibleItems = hadithSearch ? filtered : filtered.slice(0, hadithVisibleCount)
 
     return (
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Hadiths</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+          {HADITH_COLLECTIONS.map((collection) => (
+            <TouchableOpacity
+              key={collection.id}
+              style={[
+                styles.chip,
+                selectedHadithCollection === collection.id && styles.chipActive,
+              ]}
+              onPress={() => {
+                setSelectedHadithCollection(collection.id)
+                setSelectedHadithId(null)
+                setHadithHasMore(true)
+                setHadithVisibleCount(HADITH_BATCH_SIZE)
+              }}
+            >
+              <Text
+                style={[
+                  styles.chipText,
+                  selectedHadithCollection === collection.id && styles.chipTextActive,
+                ]}
+              >
+                {collection.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
         <TextInput
           value={hadithSearch}
           onChangeText={setHadithSearch}
@@ -1074,8 +1200,15 @@ export default function App() {
           style={styles.searchInput}
           placeholderTextColor="#6b6257"
         />
+        <Text style={styles.sectionSubtitle}>
+          {hadithSearch
+            ? `Résultats: ${filtered.length}`
+            : `Affichés: ${Math.min(visibleItems.length, hadithItems.length)} / ${hadithItems.length}`}
+        </Text>
+        {hadithLoading && <Text style={styles.sectionSubtitle}>Chargement...</Text>}
+        {hadithError && <Text style={styles.sectionSubtitle}>{hadithError}</Text>}
         <View style={styles.list}>
-          {filtered.map((hadith) => (
+          {visibleItems.map((hadith) => (
             <TouchableOpacity
               key={hadith.id}
               style={styles.listCard}
@@ -1092,6 +1225,19 @@ export default function App() {
             </TouchableOpacity>
           ))}
         </View>
+        {hadithHasMore && !hadithSearch && filtered.length > hadithVisibleCount && (
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => {
+              if (hadithLoading) return
+              const nextCount = Math.min(hadithVisibleCount + HADITH_BATCH_SIZE, hadithItems.length)
+              setHadithVisibleCount(nextCount)
+              setHadithHasMore(nextCount < hadithItems.length)
+            }}
+          >
+            <Text style={styles.secondaryButtonText}>Charger plus</Text>
+          </TouchableOpacity>
+        )}
       </View>
     )
   }
